@@ -158,11 +158,11 @@ All strategy selection happens through configuration, read at startup, never at 
 
 ```yaml
 llm:
-  provider: openai
-  model: ...
+  provider: openrouter
+  model: deepseek/deepseek-v4-flash-0731
 embedding:
-  provider: sentence_transformers
-  model: ...
+  provider: openrouter
+  model: sentence-transformers/all-minilm-l6-v2
 chunking:
   strategy: recursive
 retrieval:
@@ -174,6 +174,8 @@ query_transformation:
 evaluation:
   strategy: ragas
 ```
+
+**Provider conventions:** All model traffic goes through **OpenRouter** — set `llm.provider: openrouter` and `embedding.provider: openrouter`, using OpenRouter model IDs (vendor-prefixed, e.g. `deepseek/deepseek-v4-flash-0731` for the LLM and `sentence-transformers/all-minilm-l6-v2` for embeddings, 384-dim).
 
 ## Database (PostgreSQL + pgvector)
 

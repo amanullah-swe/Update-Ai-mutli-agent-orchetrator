@@ -139,11 +139,11 @@ All strategy selection happens through configuration, read at startup, never at 
 
 ```yaml
 llm:
-  provider: openai
-  model: ...
+  provider: openrouter
+  model: deepseek/deepseek-v4-flash-0731
 embedding:
-  provider: sentence_transformers
-  model: ...
+  provider: openrouter
+  model: sentence-transformers/all-minilm-l6-v2
 chunking:
   strategy: recursive
 retrieval:
