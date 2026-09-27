@@ -1,0 +1,20 @@
+# Backend image for the RAG Learning Platform API (API-only build).
+# Python 3.13-slim keeps the image small and has wide wheel coverage;
+# local dev may run 3.14 via uv.
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy
+
+# Install uv (fast, matches local dev tooling).
+RUN pip install --no-cache-dir "uv>=0.5"
+
+WORKDIR /app/backend
+COPY backend/ /app/backend/
+
+# uv.lock keeps versions identical to dev; skip the dev dependency group.
+RUN uv sync --frozen --no-dev
+
+EXPOSE 8001
+CMD ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

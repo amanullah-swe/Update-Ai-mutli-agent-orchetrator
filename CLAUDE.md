@@ -25,15 +25,15 @@ Consequences that always apply:
 These decisions are NOT yet made because no code exists. Resolve each one during scaffolding and record the decision in this section so the whole project stays consistent. Recommended defaults are marked (→).
 
 1. **Strategy → class binding** — how config `chunking.strategy: semantic` resolves to `SemanticChunker`. → Use a per-component-type registry with a `@register("semantic")` class decorator and a `build_component(kind, name)` factory that raises a loud error listing known strategies. Avoid `importlib`-by-convention and avoid dispatch listings in the pipeline.
-2. **Python tooling** — the original spec shows `requirements.txt`. → Prefer `uv` + `pyproject.toml` unless a pip-only constraint exists. Pin core dependencies.
-3. **Config loading** — YAML files under `configs/` loaded once at startup into a typed config object (→ pydantic-settings), from which the app constructs all components via dependency injection. Components never read YAML or env vars themselves.
+2. **Python tooling** — ✅ RESOLVED (ADR-002): `uv` + `pyproject.toml` with a committed `uv.lock`; Python `>=3.13`. Original `requirements.txt` note superseded.
+3. **Config loading** — ✅ RESOLVED (ADR-003): `pydantic-settings` `Settings` + `configs/<env>.yaml` (YAML is the low-priority source; `RAG_*` env + `.env` override). Components get a typed `Settings` via dependency injection; nothing reads YAML or env directly.
 4. **Framework dependence** — the folder layout (format-specific loaders/parsers/cleaners) implies hand-written implementations behind custom interfaces. → Keep custom interfaces and add thin adapters to third-party libraries (LangChain, LlamaIndex, RAGAS, etc.), so swappability never depends on a framework.
 5. **Frontend tooling** — → Vite + React + TypeScript, with an SSE client for `/api/chat` streaming.
 6. **Sparse retrieval storage** — `rag/retrieval/sparse.py` needs a sparse index that pgvector cannot provide. → PostgreSQL FTS / `pg_search` alongside pgvector, or an in-memory BM25 index. Pick one.
 7. **Filtering stage** — the pipeline stage list includes *Filtering*, but the folder layout has no `rag/filtering/` module (closest is `rag/context/deduplication.py`). → Either add a `rag/filtering/` package with an interface, or officially fold filtering into retrieval. Decide and keep the layout consistent with the pipeline stages.
-8. **DB migrations** — `database/migrations/` and `database/schemas/` both exist in the layout. → Alembic migrations are the source of truth; treat `database/schemas/` as raw DDL / seed reference only.
+8. **DB migrations** — ✅ RESOLVED (ADR-008): Alembic (`database/migrations/`) is the single source of truth; treat `database/schemas/` as reference DDL, never applied. Tests rebuild the schema via Alembic, not `create_all`.
 9. **Config key vocabulary** — the spec mixes `provider` (for `llm`, `embedding`) and `strategy` (for `chunking`, `retrieval`, `reranking`). Keep both but document `strategy` as the general term; update all sample configs to match.
-10. **Streaming transport** — the spec says SSE "where appropriate" and the chat API must stream. → Standardize on SSE (`text/event-stream`) for `/api/chat`.
+10. **Streaming transport** — ✅ RESOLVED (ADR-011, supersedes ADR-010): chat messaging runs over a **WebSocket** (`WS /api/chats/{chat_id}/ws`) with JSON frames — `user_message` in; `message_start → token* → sources → message_end`, plus in-band `error`, out. ADR-010's SSE choice is superseded for chat; its event vocabulary is preserved.
 
 ## Commands
 
@@ -139,19 +139,21 @@ QueryTransformer ContextBuilder   Generator         Evaluator
 
 Indexing a new variant means: implement the interface in a new file, register it, and reference it by name in config — the pipeline code itself is untouched. This is what enables experiments like *Recursive+Dense*, *Semantic+Dense*, *Semantic+Hybrid*, *Semantic+Hybrid+CrossEncoder* without changing application code.
 
-## Backend API surface (minimum)
+## Backend API surface (current — 007 chat CRUD + WebSocket)
 
 ```text
-POST /api/chat                    (SSE streaming responses)
-POST /api/documents/upload
-GET  /api/documents
-DELETE /api/documents/{id}
-POST /api/evaluation/run
-GET  /api/evaluation/results
-POST /api/experiments/run
-GET  /api/experiments/{id}
-GET  /api/health
+POST   /api/chats                 create a chat
+GET    /api/chats                 list chats (most recent activity first)
+GET    /api/chats/{id}            get a chat + its transcript
+PATCH  /api/chats/{id}            rename a chat
+WS     /api/chats/{id}/ws         send/receive messages (JSON frames)
+GET    /api/health                liveness + database reachability
 ```
+
+Document upload, evaluation runs, and experiment runs were de-scoped from the initial
+build (feature 007 rescope) and return to the backlog as their own features when the RAG
+pipeline exists to produce real data. Chat messaging is the working transport, carried by
+WebSockets (decision #10 → ADR-011).
 
 ## Configuration model
 

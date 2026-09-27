@@ -1,0 +1,25 @@
+# Development configuration — loaded at startup by the backend's Settings.
+# Env vars (RAG_*) and backend/.env override these values.
+app:
+  name: rag-learning-platform
+  environment: development
+  debug: true
+  version: 0.1.0
+
+database:
+  url: postgresql+psycopg://rag:rag@localhost:5432/rag_learning
+
+cors:
+  origins:
+    - http://localhost:5173
+    - http://127.0.0.1:5173
+
+chat:
+  provider: mock          # mock today — the interface leaves room for a future `rag` provider
+  mock:
+    token_delay_ms: 25
+
+# Future RAG strategy sections (decided/empty until the pipeline feature lands):
+# chunking: { strategy: recursive }
+# retrieval: { strategy: hybrid }
+# reranking: { strategy: cross_encoder }

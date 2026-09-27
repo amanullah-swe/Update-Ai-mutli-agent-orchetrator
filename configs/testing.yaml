@@ -1,0 +1,19 @@
+# Testing configuration — token delay 0 for determinism; tests override
+# RAG_DATABASE_URL to the rag_learning_test database.
+app:
+  name: rag-learning-platform
+  environment: testing
+  debug: true
+  version: 0.1.0
+
+database:
+  url: postgresql+psycopg://rag:rag@localhost:5432/rag_learning_test
+
+cors:
+  origins:
+    - http://localhost:5173
+
+chat:
+  provider: mock
+  mock:
+    token_delay_ms: 0

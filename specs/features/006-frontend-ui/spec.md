@@ -59,7 +59,7 @@ The frontend has no CLAUDE.md "Common Interface", but holds its own stable contr
 
 ```env
 # frontend/.env.development
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8001
 VITE_CHAT_TRANSPORT=sse        # sse | mock — mock lets the UI run without a backend
 ```
 

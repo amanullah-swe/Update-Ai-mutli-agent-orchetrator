@@ -1,0 +1,38 @@
+[project]
+name = "rag-learning-backend"
+version = "0.1.0"
+description = "FastAPI backend for the Modular AI Agent + RAG Learning Platform (API-only build, mock chat)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.6",
+    "uvicorn[standard]>=0.34.0",
+    "sqlalchemy>=2.0.36",
+    "psycopg[binary]>=3.2.3",
+    "alembic>=1.14.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "PyYAML>=6.0.2",
+    "python-multipart>=0.0.18",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "httpx>=0.28.1",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+where = ["."]
+
+[tool.setuptools.package-data]
+"app" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

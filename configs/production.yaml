@@ -1,0 +1,18 @@
+# Production configuration — debug off, no artificial token delay (real SSE later).
+app:
+  name: rag-learning-platform
+  environment: production
+  debug: false
+  version: 0.1.0
+
+database:
+  url: postgresql+psycopg://rag:rag@localhost:5432/rag_learning
+
+cors:
+  origins:
+    - https://app.example.com
+
+chat:
+  provider: mock
+  mock:
+    token_delay_ms: 0

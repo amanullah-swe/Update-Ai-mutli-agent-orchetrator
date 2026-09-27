@@ -57,7 +57,7 @@ This is what makes experiments like *Recursive+Dense*, *Semantic+Dense*, *Semant
                     │   ChatGPT-like UI   │
                     └──────────┬──────────┘
                                │
-                               │ HTTP / SSE
+                               │ HTTP + WebSocket
                                ▼
                     ┌─────────────────────┐
                     │     FastAPI         │
@@ -85,8 +85,8 @@ The `ai_agent/` package is deliberately separate from `rag/`. The agent may use 
 ```
 rag-learning-platform/
 ├── frontend/          React + TypeScript chat UI (components/, pages/, hooks/, services/, types/, utils/)
-├── backend/           FastAPI — app/api/routes/{chat,documents,evaluation,experiments}.py, app/core/{config,logging,exceptions}.py,
-│                      app/models/, app/schemas/, app/services/, app/main.py, tests/
+├── backend/           FastAPI — app/api/{routes,core,models,schemas,services}.py, app/main.py, tests/
+│                      routes: chats (HTTP CRUD + WebSocket), health
 ├── ai_agent/          agent/{agent,state,planner,executor}.py, tools/, memory/, prompts/, guardrails/, tests/
 ├── rag/
 │   ├── types/         document.py, chunk.py, retrieval.py, evaluation.py
@@ -156,18 +156,19 @@ evaluation:
   strategy: ragas
 ```
 
-## Backend API Surface
+## Backend API Surface (current — chat CRUD + WebSocket)
+
+Document upload, evaluation, and experiment endpoints were de-scoped from the initial
+build (feature 007 rescope) and return to the backlog with the RAG pipeline. The working
+surface is the chat app:
 
 ```text
-POST /api/chat                    (SSE streaming responses)
-POST /api/documents/upload
-GET  /api/documents
-DELETE /api/documents/{id}
-POST /api/evaluation/run
-GET  /api/evaluation/results
-POST /api/experiments/run
-GET  /api/experiments/{id}
-GET  /api/health
+POST   /api/chats                 create a chat
+GET    /api/chats                 list chats (most recent activity first)
+GET    /api/chats/{id}            get a chat + its transcript
+PATCH  /api/chats/{id}            rename a chat
+WS     /api/chats/{id}/ws         send/receive messages (JSON frames)
+GET    /api/health                liveness + database reachability
 ```
 
 ## Evaluation & Experiments
@@ -184,11 +185,24 @@ GET  /api/health
 
 ## Getting Started
 
-*No runnable commands exist yet — the project is in the specification phase.* This section will be completed as scaffolding lands. Planned tooling:
+Partially built: the **backend API (FastAPI + PostgreSQL)** and the **frontend chat UI** both run today; the RAG pipeline / AI agent / LLM integration are future features, so the assistant's reply is a deterministic **mock** streamed over a WebSocket (`chat.provider: mock`).
 
-- **Backend (dev):** `make backend` — uvicorn app reload, plus migration/seed steps.
-- **Frontend (dev):** `cd frontend && npm run dev`.
-- **Tests:** `make test` / `pytest`, e.g. `pytest rag/chunking/test_recursive.py::test_name`.
+```sh
+# 1. database — Docker, or a local PostgreSQL instance
+make up                 # docker compose: postgres on :5432 (role rag / pass rag)
+
+# 2. backend
+cp backend/.env.example backend/.env   # optional overrides
+make migrate            # apply Alembic migrations (source of truth for the schema)
+make backend            # uvicorn on :8001 (http://localhost:8001/docs)
+
+# 3. frontend
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
+
+- **Backend (dev):** `make backend`.  **Tests:** `cd backend && uv run pytest`.
+- Chat returns mock data by design (`chat.provider: mock` in `configs/development.yaml`) — swap in a real provider without touching routes.
+- See `backend/README.md` for the full API surface and mock-chat contract.
 
 See the [Roadmap](#roadmap) for what's next.
 
@@ -206,7 +220,7 @@ The core pipeline code is not touched. A canonical worked example will be docume
 
 1. **Foundation** — resolve the 10 open build decisions (registered in `CLAUDE.md`), scaffold the monorepo, tooling (`uv` + `pyproject.toml`), config loading, Docker, Makefile.
 2. **RAG core** — `rag/types`, interfaces + registries for every component, at least two chunkers and two retrievers.
-3. **Backend** — FastAPI app, PostgreSQL + pgvector integration, SSE chat streaming, document upload.
+3. **Backend** — FastAPI app, PostgreSQL + pgvector integration, WebSocket chat messaging, document upload.
 4. **Frontend** — Vite + React + TypeScript chat UI with streaming, markdown, and citations.
 5. **Evaluation & experiments** — metric implementations, regression dataset, experiment runner.
 6. **Agent** — `ai_agent/` with RAG as a tool.
