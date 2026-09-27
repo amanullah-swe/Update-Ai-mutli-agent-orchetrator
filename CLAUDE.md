@@ -101,6 +101,7 @@ rag-learning-platform/
 ├── database/          migrations/, schemas/, seed/
 ├── experiments/       configs/, results/, notebooks/
 ├── configs/           development.yaml, testing.yaml, production.yaml
+├── specs/             spec-driven workflow — features/ (one per feature), templates/, decisions/
 ├── tests/             integration/, e2e/
 ├── docker/            Dockerfile.backend, Dockerfile.frontend, docker-compose.yml
 ├── .env.example, README.md, Makefile
@@ -206,6 +207,22 @@ Every RAG request must be traceable end-to-end through: request_id, query, retri
 ## Frontend (minimal chat UI)
 
 User/assistant message list, input box + send, streaming responses, markdown + code block rendering, loading/error states, new-conversation, and source/citation display. Keep it simple; do not overspend on visual customization.
+
+## Spec-driven feature workflow
+
+We build this project **feature by feature, spec first**. Behavior is specified before code is written, then planned, then implemented and logged. Each feature folder stores three documents so any change can be back-tracked:
+
+- **`spec.md`** — *what* we're building (interfaces, behavior, acceptance criteria). The feature's `Status:` lives here.
+- **`plan.md`** — *how* we'll build it (ordered steps, files, test strategy), written once the spec is `Specified`.
+- **`implementation.md`** — *what actually happened* (append-only, dated log: files touched, deviations, test results, decisions). Never rewrite this file — add entries. This is the back-tracking trail.
+
+- **Specs live in `specs/features/<NNN>-<slug>/`** with those three files. Templates live in `specs/templates/`; see `specs/README.md`.
+- **Feature lifecycle:** `Draft → Specified → Planned → Implemented → Tested → Accepted`, tracked in the spec's `Status:` line. A feature ships only when its acceptance checklist is fully ticked and `plan.md`'s steps are done.
+- **No code before `Planned`.** Spec must be `Specified` (`spec.md`) and `Planned` (`plan.md`) before behavior is implemented. Scaffolding folders is fine.
+- **Spec-first on change:** behavior changes touch the spec first, then the plan, then the code.
+- **One feature per working unit:** implement, test, and commit a single feature (or a coherent slice) at a time. Each must satisfy the Core Architectural Rule and this layout's contract.
+- **Decisions:** resolving an open item in "Build decisions" produces an ADR under `specs/decisions/` and updates the item here.
+- **Definition of Done:** a feature is Done when Implemented, Tested (unit + relevant integration/regression), logged in `implementation.md`, and Accepted against its acceptance criteria.
 
 ## Definition of Done (acceptance checklist for the initial build)
 
