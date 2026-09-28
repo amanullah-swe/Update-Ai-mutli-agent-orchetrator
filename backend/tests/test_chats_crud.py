@@ -65,6 +65,33 @@ def test_rename_blank_title_rejected(client) -> None:
     assert response.status_code == 422
 
 
+def test_delete_chat_returns_204_and_removes_it(client) -> None:
+    chat_id = _create(client, "to delete").json()["id"]
+    response = client.delete(f"/api/chats/{chat_id}")
+    assert response.status_code == 204
+    assert response.content == b""
+    assert client.get(f"/api/chats/{chat_id}").status_code == 404
+
+
+def test_delete_chat_cascades_messages(client, db_session) -> None:
+    chat_id = _create(client, "with messages").json()["id"]
+    db_session.add(Message(conversation_id=uuid.UUID(chat_id), role="user", content="hello"))
+    db_session.add(Message(conversation_id=uuid.UUID(chat_id), role="assistant", content="hi"))
+    db_session.commit()
+
+    assert client.delete(f"/api/chats/{chat_id}").status_code == 204
+    remaining = (
+        db_session.query(Message)
+        .filter(Message.conversation_id == uuid.UUID(chat_id))
+        .count()
+    )
+    assert remaining == 0
+
+
+def test_delete_missing_chat_returns_404(client) -> None:
+    assert client.delete(f"/api/chats/{uuid.uuid4()}").status_code == 404
+
+
 def test_list_chats_orders_by_recent_activity(client, db_session) -> None:
     a = _create(client, "A").json()["id"]
     b = _create(client, "B").json()["id"]

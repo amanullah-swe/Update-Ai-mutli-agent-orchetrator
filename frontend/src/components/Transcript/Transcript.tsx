@@ -5,19 +5,25 @@ import { MessageBubble } from './MessageBubble'
 export interface TranscriptProps {
   messages: Message[]
   isLoading: boolean
+  /** Fetching the transcript from the server (GET /api/chats/{id}). */
+  loading?: boolean
 }
 
-export function Transcript({ messages, isLoading }: TranscriptProps) {
+export function Transcript({ messages, isLoading, loading = false }: TranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages, isLoading])
+  }, [messages, isLoading, loading])
 
   return (
     <div className="transcript" ref={scrollRef} aria-label="Messages">
-      {messages.length === 0 ? (
+      {loading && messages.length === 0 ? (
+        <div className="transcript__empty" aria-busy="true">
+          <p>Loading transcript…</p>
+        </div>
+      ) : messages.length === 0 ? (
         <div className="transcript__empty">
           <p>Ask anything about your documents.</p>
           <p className="transcript__hint">Your RAG-grounded answers and sources will appear here.</p>

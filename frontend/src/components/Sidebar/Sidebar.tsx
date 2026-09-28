@@ -6,9 +6,18 @@ export interface SidebarProps {
   activeId: string | null
   onSelect: (id: string) => void
   onNew: () => void
+  onRename?: (id: string, title: string) => void | Promise<void>
+  onDelete?: (id: string) => void
 }
 
-export function Sidebar({ conversations, activeId, onSelect, onNew }: SidebarProps) {
+export function Sidebar({
+  conversations,
+  activeId,
+  onSelect,
+  onNew,
+  onRename,
+  onDelete,
+}: SidebarProps) {
   return (
     <aside className="sidebar" aria-label="Conversations">
       <div className="sidebar__header">
@@ -28,6 +37,8 @@ export function Sidebar({ conversations, activeId, onSelect, onNew }: SidebarPro
               conversation={conversation}
               active={conversation.id === activeId}
               onSelect={onSelect}
+              onRename={onRename}
+              onDelete={onDelete}
             />
           ))}
         </ul>

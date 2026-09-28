@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, WebSocket, status
+from fastapi import APIRouter, Depends, Response, WebSocket, status
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -76,6 +76,15 @@ def rename_chat(
 ) -> ChatOut:
     """Rename a chat (bumps ``updated_at``). 404 if unknown."""
     return conversation_service.rename_chat(db, chat_id, payload.title)
+
+
+@router.delete("/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_chat(
+    chat_id: uuid.UUID, db: Session = Depends(get_db)
+) -> Response:
+    """Delete a chat and its transcript (messages cascade). 404 if unknown."""
+    conversation_service.delete_chat(db, chat_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # --- WebSocket: message send/receive ------------------------------------------

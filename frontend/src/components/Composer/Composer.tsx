@@ -47,21 +47,23 @@ export function Composer({ onSend, disabled = false }: ComposerProps) {
         submit()
       }}
     >
-      <textarea
-        ref={textareaRef}
-        className="composer__input"
-        value={text}
-        rows={1}
-        placeholder={disabled ? 'Waiting for the assistant…' : 'Message the assistant…'}
-        aria-label="Message input"
-        disabled={disabled}
-        onChange={(event) => setText(event.target.value)}
-        onInput={onInput}
-        onKeyDown={onKeyDown}
-      />
-      <button type="submit" className="composer__send" disabled={disabled || text.trim() === ''}>
-        Send
-      </button>
+      <div className="composer__row">
+        <textarea
+          ref={textareaRef}
+          className="composer__input"
+          value={text}
+          rows={1}
+          placeholder={disabled ? 'Waiting for the assistant…' : 'Message the assistant…'}
+          aria-label="Message input"
+          disabled={disabled}
+          onChange={(event) => setText(event.target.value)}
+          onInput={onInput}
+          onKeyDown={onKeyDown}
+        />
+        <button type="submit" className="composer__send" disabled={disabled || text.trim() === ''}>
+          Send
+        </button>
+      </div>
     </form>
   )
 }

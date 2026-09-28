@@ -28,7 +28,7 @@ These decisions are NOT yet made because no code exists. Resolve each one during
 2. **Python tooling** — ✅ RESOLVED (ADR-002): `uv` + `pyproject.toml` with a committed `uv.lock`; Python `>=3.13`. Original `requirements.txt` note superseded.
 3. **Config loading** — ✅ RESOLVED (ADR-003): `pydantic-settings` `Settings` + `configs/<env>.yaml` (YAML is the low-priority source; `RAG_*` env + `.env` override). Components get a typed `Settings` via dependency injection; nothing reads YAML or env directly.
 4. **Framework dependence** — the folder layout (format-specific loaders/parsers/cleaners) implies hand-written implementations behind custom interfaces. → Keep custom interfaces and add thin adapters to third-party libraries (LangChain, LlamaIndex, RAGAS, etc.), so swappability never depends on a framework.
-5. **Frontend tooling** — → Vite + React + TypeScript, with an SSE client for `/api/chat` streaming.
+5. **Frontend tooling** — → Vite + React + TypeScript, chat messaging over a WebSocket client for `/api/chats/{id}/ws` (ADR-011 superseded the SSE `/api/chat` client — see decision #10).
 6. **Sparse retrieval storage** — `rag/retrieval/sparse.py` needs a sparse index that pgvector cannot provide. → PostgreSQL FTS / `pg_search` alongside pgvector, or an in-memory BM25 index. Pick one.
 7. **Filtering stage** — the pipeline stage list includes *Filtering*, but the folder layout has no `rag/filtering/` module (closest is `rag/context/deduplication.py`). → Either add a `rag/filtering/` package with an interface, or officially fold filtering into retrieval. Decide and keep the layout consistent with the pipeline stages.
 8. **DB migrations** — ✅ RESOLVED (ADR-008): Alembic (`database/migrations/`) is the single source of truth; treat `database/schemas/` as reference DDL, never applied. Tests rebuild the schema via Alembic, not `create_all`.
@@ -139,13 +139,14 @@ QueryTransformer ContextBuilder   Generator         Evaluator
 
 Indexing a new variant means: implement the interface in a new file, register it, and reference it by name in config — the pipeline code itself is untouched. This is what enables experiments like *Recursive+Dense*, *Semantic+Dense*, *Semantic+Hybrid*, *Semantic+Hybrid+CrossEncoder* without changing application code.
 
-## Backend API surface (current — 007 chat CRUD + WebSocket)
+## Backend API surface (current — 007 chat CRUD + WebSocket + 009 delete)
 
 ```text
 POST   /api/chats                 create a chat
 GET    /api/chats                 list chats (most recent activity first)
 GET    /api/chats/{id}            get a chat + its transcript
 PATCH  /api/chats/{id}            rename a chat
+DELETE /api/chats/{id}            delete a chat (messages cascade) — 009
 WS     /api/chats/{id}/ws         send/receive messages (JSON frames)
 GET    /api/health                liveness + database reachability
 ```

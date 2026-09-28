@@ -33,7 +33,7 @@ Documents, evaluation, and experiments are **not** abandoned; they return to the
 
 **Out of scope** (backlog — each gets its own feature when it has a real producer)
 
-- `DELETE /api/chats/{id}` — not requested; the chat list has no delete affordance yet. *(Open question 1.)*
+- ~~`DELETE /api/chats/{id}` — not requested; the chat list has no delete affordance yet. *(Open question 1.)*~~ → added by **009** (see Open questions).
 - Document upload / ingestion / loaders / chunking / embeddings / vectorstore / retrieval / reranking.
 - Evaluation and experiments (routes, services, models, tables) — removed by this rescope.
 - AI agent, LLM calls, RAG pipeline — the assistant reply is mocked.
@@ -205,7 +205,7 @@ The migration history is **squashed**: the previous ten-table revision is delete
 
 ## Open questions
 
-- [ ] **Delete a chat?** Not in this scope. When the UI grows a delete affordance, add `DELETE /api/chats/{id}` with cascade to messages (the FK already cascades). *(Deferred — ask before adding.)*
+- [x] **Delete a chat?** ✅ RESOLVED in **009** — the UI grew a delete affordance, so `DELETE /api/chats/{id}` now exists (204; messages cascade via the FK, which was already in place).
 - [ ] **Chat titles:** server-side auto-titling from the first message was dropped with the rescope (the client can rename instead). Revisit if the UI wants zero-effort titles.
 - [ ] **Resume vs. replay:** the socket does not replay history and does not resume a dropped connection mid-turn. If the UI needs reconnect-with-context, specify it then.
 - [ ] **`sources` provenance:** still `json` on `messages`; whether evaluation later reads sources from messages or a join table is the evaluation feature's call.

@@ -80,6 +80,13 @@ def rename_chat(db: Session, chat_id: uuid.UUID, title: str) -> Conversation:
     return conversation
 
 
+def delete_chat(db: Session, chat_id: uuid.UUID) -> None:
+    """Delete a chat; its messages cascade via the FK. 404 if unknown."""
+    conversation = get_chat(db, chat_id)
+    db.delete(conversation)
+    db.commit()
+
+
 def append_message(
     db: Session,
     conversation_id: uuid.UUID,

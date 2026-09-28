@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string
-  readonly VITE_CHAT_TRANSPORT?: 'sse' | 'mock'
+  readonly VITE_CHAT_TRANSPORT?: 'ws' | 'mock'
 }
 
 interface ImportMeta {

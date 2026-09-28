@@ -40,13 +40,22 @@ body {
 .chat-layout {
   display: grid;
   grid-template-columns: 280px 1fr;
+  /* A definite row (not `auto`): without this the row grows to its content's
+     max-content, the panes overflow the fixed shell, and the whole page
+     scrolls instead of the sidebar/transcript scrolling independently. */
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
+  overflow: hidden;
 }
 
 .chat-layout__main {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* A grid item's default `min-height: auto` lets content grow the row;
+     clip instead so the transcript/composer panes own their own scroll. */
+  min-height: 0;
+  overflow: hidden;
   background: var(--color-surface);
 }
 
@@ -112,8 +121,17 @@ body {
   gap: 2px;
 }
 
+.conversation-item__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Anchors the Rename/Delete menu to the row. */
+  position: relative;
+}
+
 .conversation-item__button {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   text-align: left;
   background: transparent;
   border: none;
@@ -128,6 +146,111 @@ body {
 
 .conversation-item--active .conversation-item__button {
   background: #2a3347;
+}
+
+/* Per-item kebab (three-dot) button: revealed on hover, always on the active
+   item, on keyboard focus, and of course while its menu is open. */
+.conversation-item__kebab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-sidebar-muted);
+  border-radius: 6px;
+  padding: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.conversation-item:hover .conversation-item__kebab,
+.conversation-item--active .conversation-item__kebab,
+.conversation-item__kebab:focus-visible,
+.conversation-item__kebab[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.conversation-item__kebab:hover {
+  background: #2a3347;
+  color: var(--color-sidebar-text);
+}
+
+/* The Rename/Delete menu. Anchored to the row, opens below it — or above, via
+   `--up`, when the row sits close to the viewport bottom and the sidebar would
+   clip the menu's overflow. */
+.conversation-item--menu-open {
+  position: relative;
+  z-index: 20;
+}
+
+.conversation-item__menu {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: 0;
+  z-index: 30;
+  min-width: 148px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 22, 38, 0.28);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.conversation-item__menu--up {
+  top: auto;
+  bottom: calc(100% - 2px);
+}
+
+.conversation-item__menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.conversation-item__menu-item:hover,
+.conversation-item__menu-item:focus-visible {
+  background: #eef1f6;
+  outline: none;
+}
+
+.conversation-item__menu-item--danger {
+  color: var(--color-error);
+}
+
+.conversation-item__menu-item--danger:hover,
+.conversation-item__menu-item--danger:focus-visible {
+  background: #fef2f2;
+}
+
+/* Inline rename editor (replaces the row while editing). */
+.conversation-item__rename {
+  padding: 8px 6px;
+}
+
+.conversation-item__rename-input {
+  width: 100%;
+  background: #0f1626;
+  border: 1px solid #3a4557;
+  color: var(--color-sidebar-text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.conversation-item__rename-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
 }
 
 .conversation-item__title {
@@ -323,12 +446,19 @@ body {
 
 /* ── Composer ────────────────────────────────────────────────────────── */
 .composer {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
   padding: 16px 24px;
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
+}
+
+/* Constrains the input row to the same measure as the message column
+   (`.transcript__list` is also max-width 760px, margin 0 auto). */
+.composer__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 760px;
+  margin: 0 auto;
 }
 
 .composer__input {
@@ -373,4 +503,80 @@ body {
 .composer__send:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+/* ── ConfirmDialog modal ─────────────────────────────────────────────── */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 22, 38, 0.45);
+  padding: 24px;
+}
+
+.modal__panel {
+  background: var(--color-surface);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(15, 22, 38, 0.3);
+  max-width: 420px;
+  width: 100%;
+  padding: 20px;
+}
+
+.modal__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.modal__message {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal__button {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.modal__button:hover {
+  background: #f1f3f7;
+}
+
+.modal__button--primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.modal__button--primary:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.modal__button--danger {
+  border-color: var(--color-error);
+  background: var(--color-error);
+  color: #ffffff;
+}
+
+.modal__button--danger:hover {
+  background: #991b1b;
+  border-color: #991b1b;
 }
