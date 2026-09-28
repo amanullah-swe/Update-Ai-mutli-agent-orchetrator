@@ -9,9 +9,9 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.exceptions import NotFoundError, ValidationError
-from app.models import Conversation, Message
-from app.schemas.chat import ChatSummary
+from app.modules.chats.models import Conversation, Message
+from app.modules.chats.schemas import ChatSummary
+from app.shared.core.exceptions import NotFoundError, ValidationError
 
 TITLE_MAX = 500
 

@@ -9,8 +9,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_app_settings, get_db
-from app.core.config import Settings
-from app.schemas.health import DatabaseHealth, HealthOut
+from app.modules.health.schemas import DatabaseHealth, HealthOut
+from app.shared.core.config import Settings
 
 router = APIRouter(prefix="/health", tags=["health"])
 

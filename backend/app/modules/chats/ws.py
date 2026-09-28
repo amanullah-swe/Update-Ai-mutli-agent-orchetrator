@@ -1,8 +1,10 @@
-"""Chat routes: HTTP CRUD (create/list/get/rename) + per-chat WebSocket messaging.
+"""Chat WebSocket messaging — one long-lived connection per chat.
 
-The API speaks *chat*; the service layer persists *conversations* (CLAUDE.md
-entity names). All database work in the async WebSocket handler is dispatched to
-the threadpool so the sync engine never blocks the event loop.
+Reads ``user_message`` frames and streams the provider's events back as
+``ready`` → ``message`` → ``message_start`` → ``token*`` → ``sources`` →
+``message_end`` (+ in-band ``error``), persisting the transcript. All database
+work is dispatched to the threadpool via ``run_in_threadpool`` so the sync
+engine never blocks the event loop.
 """
 
 from __future__ import annotations
@@ -10,21 +12,13 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Response, WebSocket, status
+from fastapi import WebSocket
 from pydantic import ValidationError as PydanticValidationError
-from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from app.api.deps import get_app_settings, get_db
-from app.core.config import Settings
-from app.core.database import SessionLocal
-from app.core.exceptions import NotFoundError
-from app.schemas.chat import (
-    ChatCreate,
-    ChatDetail,
-    ChatListResponse,
-    ChatOut,
-    ChatRename,
+from app.modules.chats import repository
+from app.modules.chats.provider import SourcesEvent, TokenEvent, build_chat_provider
+from app.modules.chats.schemas import (
     ErrorFrame,
     MessageEndFrame,
     MessageFrame,
@@ -35,65 +29,17 @@ from app.schemas.chat import (
     TokenFrame,
     UserMessageFrame,
 )
-from app.services import conversation_service
-from app.services.chat import (
-    SourcesEvent,
-    TokenEvent,
-    build_chat_provider,
-)
+from app.shared.core.config import Settings
+from app.shared.core.exceptions import NotFoundError
+from app.shared.database.session import SessionLocal
 
-log = logging.getLogger("rag.platform.chats")
-
-router = APIRouter(prefix="/chats", tags=["chats"])
-
-
-# --- HTTP: chat CRUD ---------------------------------------------------------
-
-
-@router.post("", response_model=ChatOut, status_code=status.HTTP_201_CREATED)
-def create_chat(payload: ChatCreate, db: Session = Depends(get_db)) -> ChatOut:
-    """Create a chat. ``title`` is optional (null on creation)."""
-    return conversation_service.create_chat(db, payload.title)
-
-
-@router.get("", response_model=ChatListResponse)
-def list_chats(db: Session = Depends(get_db)) -> ChatListResponse:
-    """Chat summaries, most recently active first."""
-    items, total = conversation_service.list_chats(db)
-    return ChatListResponse(items=items, total=total)
-
-
-@router.get("/{chat_id}", response_model=ChatDetail)
-def get_chat(chat_id: uuid.UUID, db: Session = Depends(get_db)) -> ChatDetail:
-    """One chat with its full transcript in order. 404 if unknown."""
-    conversation = conversation_service.get_chat(db, chat_id)
-    return ChatDetail.model_validate(conversation)
-
-
-@router.patch("/{chat_id}", response_model=ChatOut)
-def rename_chat(
-    chat_id: uuid.UUID, payload: ChatRename, db: Session = Depends(get_db)
-) -> ChatOut:
-    """Rename a chat (bumps ``updated_at``). 404 if unknown."""
-    return conversation_service.rename_chat(db, chat_id, payload.title)
-
-
-@router.delete("/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_chat(
-    chat_id: uuid.UUID, db: Session = Depends(get_db)
-) -> Response:
-    """Delete a chat and its transcript (messages cascade). 404 if unknown."""
-    conversation_service.delete_chat(db, chat_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-# --- WebSocket: message send/receive ------------------------------------------
+log = logging.getLogger("rag.platform.chats.ws")
 
 
 def _load_chat(chat_id: uuid.UUID) -> None:
     """Raise NotFoundError when the chat does not exist (called in the threadpool)."""
     with SessionLocal() as session:
-        conversation_service.get_chat(session, chat_id)
+        repository.get_chat(session, chat_id)
 
 
 def _append_message(
@@ -106,7 +52,7 @@ def _append_message(
 ) -> MessageOut:
     """Persist a message and serialize it in the threadpool (session-scoped)."""
     with SessionLocal() as session:
-        message = conversation_service.append_message(
+        message = repository.append_message(
             session,
             conversation_id,
             role=role,
@@ -118,11 +64,8 @@ def _append_message(
         return MessageOut.model_validate(message)
 
 
-@router.websocket("/{chat_id}/ws")
-async def chat_ws(
-    websocket: WebSocket,
-    chat_id: uuid.UUID,
-    settings: Settings = Depends(get_app_settings),
+async def chat_ws_handler(
+    websocket: WebSocket, chat_id: uuid.UUID, settings: Settings
 ) -> None:
     await websocket.accept()
 

@@ -13,9 +13,9 @@ from sqlalchemy import engine_from_config, pool
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-from app.core.config import get_settings  # noqa: E402
-from app.core.database import Base  # noqa: E402
-import app.models  # noqa: E402,F401  # populate Base.metadata
+from app.shared.core.config import get_settings  # noqa: E402
+from app.shared.database.base import Base  # noqa: E402
+import app.modules.chats.models  # noqa: E402,F401  # populate Base.metadata
 
 config = context.config
 if config.config_file_name is not None:

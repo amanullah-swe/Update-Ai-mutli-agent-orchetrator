@@ -15,9 +15,9 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from app.core.config import Settings
-from app.core.exceptions import ValidationError
-from app.schemas.chat import Source
+from app.modules.chats.schemas import Source
+from app.shared.core.config import Settings
+from app.shared.core.exceptions import ValidationError
 
 
 @dataclass(frozen=True)

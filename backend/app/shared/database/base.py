@@ -1,4 +1,4 @@
-"""Shared declarative helpers: UUID primary keys and created/updated timestamps."""
+"""Declarative base and shared column helpers for every ORM model."""
 
 from __future__ import annotations
 
@@ -6,7 +6,11 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, Uuid, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    """Declarative base for all ORM models. Alembic is the only DDL source."""
 
 
 def uuid_pk() -> Mapped[uuid.UUID]:

@@ -26,7 +26,8 @@ from sqlalchemy import text, create_engine  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app.core.database import Base, SessionLocal, engine  # noqa: E402
+from app.shared.database.base import Base  # noqa: E402
+from app.shared.database.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 
 ALEMBIC_INI = REPO_ROOT / "database" / "migrations" / "alembic.ini"

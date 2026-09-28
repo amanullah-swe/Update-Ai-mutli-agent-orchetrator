@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.config import Settings
-from app.core.exceptions import ValidationError
-from app.services.chat import (
+from app.modules.chats.provider import (
     MockChatProvider,
     SourcesEvent,
     TokenEvent,
     build_chat_provider,
     token_deltas,
 )
+from app.shared.core.config import Settings
+from app.shared.core.exceptions import ValidationError
 
 
 def test_mock_provider_emits_tokens_then_sources() -> None:

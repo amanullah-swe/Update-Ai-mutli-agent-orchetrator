@@ -8,8 +8,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
-from app.models.base import TimestampMixin, uuid_pk
+from app.shared.database.base import Base, TimestampMixin, uuid_pk
 
 
 class Conversation(Base, TimestampMixin):

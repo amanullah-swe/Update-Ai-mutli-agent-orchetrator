@@ -1,1 +1,0 @@
-"""Service layer: chat provider seam, persistence orchestration, mock metric builders."""

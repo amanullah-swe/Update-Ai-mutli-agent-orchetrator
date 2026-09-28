@@ -11,11 +11,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import api_router
-from app.core.config import get_settings
-from app.core.database import engine
-from app.core.exceptions import register_exception_handlers
-from app.core.logging import RequestIdMiddleware, configure_logging, get_logger
+from app.api.router import api_router
+from app.shared.core.config import get_settings
+from app.shared.core.exceptions import register_exception_handlers
+from app.shared.core.logging import RequestIdMiddleware, configure_logging, get_logger
+from app.shared.database.session import engine
 
 settings = get_settings()
 log = get_logger("rag.platform.main")
