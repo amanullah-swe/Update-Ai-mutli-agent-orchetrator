@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.shared.core.config import get_settings
 from app.shared.core.exceptions import register_exception_handlers
-from app.shared.core.logging import RequestIdMiddleware, configure_logging, get_logger
+from app.logging import RequestIdMiddleware, configure_logging, get_logger
 from app.shared.database.session import engine
 
 settings = get_settings()

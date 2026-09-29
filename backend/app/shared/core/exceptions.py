@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.shared.core.logging import get_logger, get_request_id, request_id_var
+from app.logging import get_logger, get_request_id, request_id_var
 
 log = get_logger(__name__)
 
