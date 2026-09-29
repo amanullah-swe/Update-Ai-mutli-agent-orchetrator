@@ -6,6 +6,7 @@ import pytest
 
 from app.modules.chats.provider import (
     MockChatProvider,
+    OpenRouterChatProvider,
     SourcesEvent,
     TokenEvent,
     build_chat_provider,
@@ -36,9 +37,31 @@ def test_build_chat_provider_selects_mock_from_config() -> None:
     assert isinstance(provider, MockChatProvider)
 
 
-def test_build_chat_provider_unknown_name_raises() -> None:
-    with pytest.raises(ValidationError):
+def test_build_chat_provider_selects_openrouter_from_config() -> None:
+    provider = build_chat_provider(
+        Settings(chat_provider="openrouter", llm_api_key="sk-x", llm_model="m/x")
+    )
+    assert isinstance(provider, OpenRouterChatProvider)
+
+
+def test_build_chat_provider_openrouter_without_key_raises() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        build_chat_provider(Settings(chat_provider="openrouter", llm_api_key=""))
+    assert "RAG_LLM_API_KEY" in excinfo.value.message
+
+
+def test_build_chat_provider_unknown_name_lists_known_providers() -> None:
+    with pytest.raises(ValidationError) as excinfo:
         build_chat_provider(Settings(chat_provider="does-not-exist"))
+    assert "mock" in excinfo.value.message and "openrouter" in excinfo.value.message
+
+
+def test_mock_provider_accepts_history_keyword() -> None:
+    # The protocol grew a history argument; the mock ignores it (no behaviour
+    # change) so every existing caller and test stays valid.
+    events = list(MockChatProvider().stream("q", history=[]))
+    assert isinstance(events[0], TokenEvent)
+    assert isinstance(events[-1], SourcesEvent)
 
 
 def test_token_deltas_preserve_unicode() -> None:

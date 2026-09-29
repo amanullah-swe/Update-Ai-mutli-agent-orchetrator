@@ -14,6 +14,11 @@ cors:
     - http://localhost:5173
 
 chat:
-  provider: mock
+  provider: mock          # tests stay deterministic — real LLM turns are unit-tested via httpx mocks
   mock:
     token_delay_ms: 0
+
+llm:
+  provider: openrouter
+  model: deepseek/deepseek-v4-flash-0731
+  api_key: ""

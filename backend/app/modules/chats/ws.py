@@ -9,15 +9,23 @@ engine never blocks the event loop.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
+from collections.abc import AsyncIterator, Sequence
 
 from fastapi import WebSocket
 from pydantic import ValidationError as PydanticValidationError
 from starlette.concurrency import run_in_threadpool
 
 from app.modules.chats import repository
-from app.modules.chats.provider import SourcesEvent, TokenEvent, build_chat_provider
+from app.modules.chats.provider import (
+    ChatProvider,
+    ProviderEvent,
+    SourcesEvent,
+    TokenEvent,
+    build_chat_provider,
+)
 from app.modules.chats.schemas import (
     ErrorFrame,
     MessageEndFrame,
@@ -30,7 +38,11 @@ from app.modules.chats.schemas import (
     UserMessageFrame,
 )
 from app.shared.core.config import Settings
-from app.shared.core.exceptions import NotFoundError
+from app.shared.core.exceptions import (
+    LLMProviderError,
+    NotFoundError,
+    ValidationError as AppValidationError,
+)
 from app.shared.database.session import SessionLocal
 
 log = logging.getLogger("rag.platform.chats.ws")
@@ -64,6 +76,55 @@ def _append_message(
         return MessageOut.model_validate(message)
 
 
+def _load_history(chat_id: uuid.UUID) -> list[MessageOut]:
+    """Prior turns (oldest→newest) for the LLM context (threadpool)."""
+    with SessionLocal() as session:
+        return repository.get_chat_history(session, chat_id)
+
+
+_STREAM_ENDED = object()
+
+
+def _next_provider_event(iterator):
+    """``next()`` that signals exhaustion instead of raising StopIteration.
+
+    Python >= 3.14 forbids StopIteration crossing the ``run_in_executor``
+    Future boundary, so we convert it to a sentinel inside the worker thread.
+    """
+    try:
+        return next(iterator)
+    except StopIteration:
+        return _STREAM_ENDED
+
+
+async def _stream_events(
+    provider: ChatProvider,
+    user_message: str,
+    history: Sequence[MessageOut],
+    *,
+    token_delay_ms: int,
+) -> AsyncIterator[ProviderEvent]:
+    """Stream a blocking sync provider generator without blocking the loop.
+
+    Each ``next()`` runs on a worker thread (the LLM's HTTP read blocks there,
+    not the event loop); events are forwarded one-by-one, never materialized.
+    """
+    loop = asyncio.get_running_loop()
+    iterator = provider.stream(
+        user_message, history=history, token_delay_ms=token_delay_ms
+    )
+    try:
+        while True:
+            event = await loop.run_in_executor(None, _next_provider_event, iterator)
+            if event is _STREAM_ENDED:
+                return
+            yield event
+    finally:
+        # Client disconnect / turn aborted: close the generator so its httpx
+        # connection is released (a no-op once the stream is exhausted).
+        await loop.run_in_executor(None, iterator.close)
+
+
 async def chat_ws_handler(
     websocket: WebSocket, chat_id: uuid.UUID, settings: Settings
 ) -> None:
@@ -82,7 +143,6 @@ async def chat_ws_handler(
         return
 
     await websocket.send_json(ReadyFrame(chat_id=chat_id).model_dump(mode="json"))
-    provider = build_chat_provider(settings)
 
     while True:
         try:
@@ -100,6 +160,10 @@ async def chat_ws_handler(
             )
             continue
 
+        # Load the prior transcript BEFORE persisting the current message, so
+        # the LLM sees history up to (not including) this turn.
+        history = await run_in_threadpool(_load_history, chat_id)
+
         # Persist the user message first — the transcript survives a disconnect.
         user_message = await run_in_threadpool(
             _append_message, chat_id, role="user", content=frame.content,
@@ -115,8 +179,12 @@ async def chat_ws_handler(
         parts: list[str] = []
         sources: list[dict] | None = None
         try:
-            for event in provider.stream(
-                frame.content, token_delay_ms=settings.mock_token_delay_ms
+            # Built per turn so a config error (e.g. missing API key) surfaces
+            # in-band on the offending turn, not as a silent connect close.
+            provider = build_chat_provider(settings)
+            async for event in _stream_events(
+                provider, frame.content, history,
+                token_delay_ms=settings.mock_token_delay_ms,
             ):
                 if isinstance(event, TokenEvent):
                     parts.append(event.delta)
@@ -136,6 +204,17 @@ async def chat_ws_handler(
                 MessageEndFrame(
                     id=assistant_id_str, message=assistant_message
                 ).model_dump(mode="json")
+            )
+        except AppValidationError as exc:
+            # Misconfiguration (e.g. missing RAG_LLM_API_KEY) — actionable, not
+            # a crash; the error frame carries the config guidance.
+            await websocket.send_json(
+                ErrorFrame(code=exc.code, message=exc.message).model_dump()
+            )
+        except LLMProviderError as exc:
+            log.warning("llm provider error for chat %s: %s", chat_id, exc)
+            await websocket.send_json(
+                ErrorFrame(code="llm_error", message=str(exc)).model_dump()
             )
         except Exception:  # noqa: BLE001 — never leak internals over the socket
             log.exception("chat turn failed for chat %s", chat_id)

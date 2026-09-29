@@ -1,5 +1,5 @@
 -- Dev seed for the 007 chat schema. Run with: make seed
--- (PGPASSWORD=rag psql -h localhost -U rag -d rag_learning -f database/seed/dev.sql)
+-- (docker compose -f docker/docker-compose.yml exec -T db psql -U rag -d rag_learning -f - < database/seed/dev.sql)
 
 INSERT INTO conversations (id, title) VALUES
     ('00000000-0000-0000-0000-000000000001', 'Digital garden notes'),

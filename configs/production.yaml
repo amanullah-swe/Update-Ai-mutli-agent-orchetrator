@@ -13,6 +13,11 @@ cors:
     - https://app.example.com
 
 chat:
-  provider: mock
+  provider: openrouter    # real LLM answers; RAG_LLM_API_KEY is required
   mock:
     token_delay_ms: 0
+
+llm:
+  provider: openrouter
+  model: deepseek/deepseek-v4-flash-0731
+  api_key: ""

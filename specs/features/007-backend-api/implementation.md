@@ -110,3 +110,10 @@
 - **Frontend is NOT wired to this chat yet** — `frontend/src/services/{SseChatService,sseClient}.ts` + `utils/sse.ts` target the retired SSE transport. Reworking the UI to `fetch` + WebSocket is a 006-frontend-ui follow-up, explicitly out of scope here.
 - `DELETE /api/chats/{id}` is not implemented (spec open question 1); the `messages.conversation_id` FK already cascades for a future delete.
 - The WebSocket does not replay history or resume a dropped connection (spec open questions 3); `GET /api/chats/{id}` serves history.
+### 2026-09-29 — PostgreSQL moved to Docker exclusively; local build removed
+
+- **Removed** the locally-built PostgreSQL (from-source install at `$HOME/local/pg` + data dir `$HOME/pgdata`). It was stopped; Docker's `db` service (`postgres:18-alpine`, volume `pgdata`) is now the sole owner of `127.0.0.1:5432` and the only source of the `rag_learning` database.
+- **Backend unchanged** — `RAG_DATABASE_URL=postgresql+psycopg://rag:rag@localhost:5432/rag_learning` already resolves to the Docker instance; no config change needed.
+- **`make seed` reworked** to run psql inside the container (`docker compose ... exec -T db psql -U rag -d rag_learning -f - < database/seed/dev.sql`) since host `psql` no longer exists; seed file header comment updated to match.
+- **Makefile:** fixed `installdo` → `install` typo in the `install-docker` recipe.
+- Verified `make db` / `make migrate` (idempotent) / `make seed` all succeed against the Docker DB (`alembic_version`, `conversations`, `messages` present).

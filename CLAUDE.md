@@ -37,12 +37,16 @@ These decisions are NOT yet made because no code exists. Resolve each one during
 
 ## Commands
 
-*None exist yet — this section is a placeholder. When the Makefile and per-package READMEs land, fill in (then delete this note):*
+Everything hangs off the root `Makefile` (run `make help` for the annotated list):
 
-- Backend (dev): `make backend` — uvicorn app reload, plus migration/seed steps.
-- Frontend (dev): `cd frontend && npm run dev`.
-- Tests: `make test` / `pytest` — and the single-test invocation form, e.g. `pytest rag/chunking/test_recursive.py::test_name`.
-- Lint/format: the agreed tool and target packages.
+- **Full dev session:** `make dev` — ensures PostgreSQL (Docker if none is already listening on :5432, waits until ready), applies pending Alembic migrations, then backend + frontend together; Ctrl+C stops all.
+- **Backend (dev):** `make backend` — `uvicorn app.main:app --reload --port 8001`. Needs the DB (`make db`) and, for real answers, `RAG_LLM_API_KEY` in `backend/.env`.
+- **Frontend (dev):** `make frontend` — `npm run dev` (Vite on :5173, talks to the backend at :8001 via `frontend/.env.development`'s `VITE_API_BASE_URL`).
+- **Database:** `make db` (or `up`) — `docker compose up -d db` + readiness wait; `down` stops it; `up-all` builds the containerized backend too.
+- **First time on a fresh machine:** `make install-docker` (apt, needs sudo), `make db`, `make migrate`, `make seed`.
+- **Migrations:** `make migrate` (upgrade) · `make migrate-make name="..."` (autogenerate). Alembic is the only DDL source.
+- **Tests:** `make test` — `cd backend && uv run pytest`. Single test: `cd backend && uv run pytest tests/unit/chats/test_chat_provider_unit.py::test_name`.
+- **Seed data:** `make seed` — loads `database/seed/dev.sql` into `rag_learning`.
 
 ## Architecture overview (as specified)
 
@@ -158,14 +162,20 @@ build (feature 007 rescope) and return to the backlog as their own features when
 pipeline exists to produce real data. Chat messaging is the working transport, carried by
 WebSockets (decision #10 → ADR-011).
 
+Assistant replies come from the `ChatProvider` seam (feature 010): `chat.provider: mock`
+(the canned test reply) or `openrouter` (a real LLM call, history-aware — prior turns are
+fetched from PostgreSQL and sent to OpenRouter). Missing `RAG_LLM_API_KEY` surfaces as an
+in-band `validation_error` frame; upstream failures as `llm_error`.
+
 ## Configuration model
 
 All strategy selection happens through configuration, read at startup, never at component level. Example shape:
 
 ```yaml
 llm:
-  provider: openrouter
+  provider: openrouter        # consumed by the chat provider (010): llm.model + RAG_LLM_API_KEY
   model: deepseek/deepseek-v4-flash-0731
+  api_key: ""                 # real key ONLY via env RAG_LLM_API_KEY (backend/.env)
 embedding:
   provider: openrouter
   model: sentence-transformers/all-minilm-l6-v2
@@ -182,6 +192,13 @@ evaluation:
 ```
 
 **Provider conventions:** All model traffic goes through **OpenRouter** — set `llm.provider: openrouter` and `embedding.provider: openrouter`, using OpenRouter model IDs (vendor-prefixed, e.g. `deepseek/deepseek-v4-flash-0731` for the LLM and `sentence-transformers/all-minilm-l6-v2` for embeddings, 384-dim).
+
+**What is live today (feature 010):** `llm.provider`/`llm.model`/`llm.api_key` are wired into the
+backend's `Settings` (ADR-003) and consumed by the chat provider seam. The *seam selector* is
+`chat.provider` (`mock` | `openrouter`); `llm.provider` stays reserved for the future RAG
+generator. `embedding:`/`chunking:`/`retrieval:`/`reranking:`/`query_transformation:`/`evaluation:`
+remain inert until their pipeline features land. `configs/*.yaml` genuinely load (the Settings
+`REPO_ROOT` resolves to the repo root); `RAG_*` env and `.env` still override YAML.
 
 ## Database (PostgreSQL + pgvector)
 

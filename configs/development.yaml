@@ -15,10 +15,14 @@ cors:
     - http://127.0.0.1:5173
 
 chat:
-  provider: mock          # mock today — the interface leaves room for a future `rag` provider
+  provider: openrouter    # mock | openrouter — set mock if you have no RAG_LLM_API_KEY
   mock:
     token_delay_ms: 25
 
+llm:
+  provider: openrouter    # CLAUDE.md provider convention (reserved; the seam is chat.provider)
+  model: deepseek/deepseek-v4-flash-0731
+  api_key: ""             # real key ONLY via env RAG_LLM_API_KEY (backend/.env)
 # Future RAG strategy sections (decided/empty until the pipeline feature lands):
 # chunking: { strategy: recursive }
 # retrieval: { strategy: hybrid }

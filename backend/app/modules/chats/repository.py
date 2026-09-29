@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.modules.chats.models import Conversation, Message
-from app.modules.chats.schemas import ChatSummary
+from app.modules.chats.schemas import ChatSummary, MessageOut
 from app.shared.core.exceptions import NotFoundError, ValidationError
 
 TITLE_MAX = 500
@@ -85,6 +85,26 @@ def delete_chat(db: Session, chat_id: uuid.UUID) -> None:
     conversation = get_chat(db, chat_id)
     db.delete(conversation)
     db.commit()
+
+
+def get_chat_history(
+    db: Session, conversation_id: uuid.UUID, limit: int | None = None
+) -> list[MessageOut]:
+    """The chat's transcript in insertion order, as ``MessageOut`` rows.
+
+    Pure read — the *provider* decides whether to skip ``error`` rows. Oldest→
+    newest (``created_at`` is per-transaction ``now()``; ``id`` is the
+    deterministic tiebreak).
+    """
+    query = (
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at, Message.id)
+    )
+    if limit is not None:
+        query = query.limit(limit)
+    rows = db.execute(query).scalars().all()
+    return [MessageOut.model_validate(row) for row in rows]
 
 
 def append_message(
