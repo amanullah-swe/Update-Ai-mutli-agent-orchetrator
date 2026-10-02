@@ -1,0 +1,76 @@
+"""Chats feature slice."""
+
+from app.features.chats.models import Conversation, Message
+from app.features.chats.provider import (
+    ChatProvider,
+    MockChatProvider,
+    OpenRouterChatProvider,
+    SourcesEvent,
+    TokenEvent,
+    build_chat_provider,
+)
+from app.features.chats.repository import (
+    append_message,
+    create_chat,
+    delete_chat,
+    get_chat,
+    get_chat_history,
+    list_chats,
+    rename_chat,
+)
+from app.features.chats.router import router
+from app.features.chats.schemas import (
+    ChatCreate,
+    ChatDetail,
+    ChatListResponse,
+    ChatOut,
+    ChatRename,
+    ChatSummary,
+    ErrorFrame,
+    MessageEndFrame,
+    MessageFrame,
+    MessageOut,
+    MessageStartFrame,
+    ReadyFrame,
+    Source,
+    SourcesFrame,
+    TokenFrame,
+    UserMessageFrame,
+)
+from app.features.chats.ws import chat_ws_handler
+
+__all__ = [
+    "ChatCreate",
+    "ChatDetail",
+    "ChatListResponse",
+    "ChatOut",
+    "ChatProvider",
+    "ChatRename",
+    "ChatSummary",
+    "Conversation",
+    "ErrorFrame",
+    "Message",
+    "MessageEndFrame",
+    "MessageFrame",
+    "MessageOut",
+    "MessageStartFrame",
+    "MockChatProvider",
+    "OpenRouterChatProvider",
+    "ReadyFrame",
+    "Source",
+    "SourcesEvent",
+    "SourcesFrame",
+    "TokenEvent",
+    "TokenFrame",
+    "UserMessageFrame",
+    "append_message",
+    "build_chat_provider",
+    "chat_ws_handler",
+    "create_chat",
+    "delete_chat",
+    "get_chat",
+    "get_chat_history",
+    "list_chats",
+    "rename_chat",
+    "router",
+]

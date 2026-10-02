@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import uuid
 
-from app.modules.chats import repository
-from app.modules.chats.provider import SourcesEvent, TokenEvent
-from app.modules.chats.schemas import MessageOut
+from app.features.chats import repository
+from app.features.chats.provider import SourcesEvent, TokenEvent
+from app.features.chats.schemas import MessageOut
 
 
 def _new_chat(client) -> str:
@@ -56,7 +56,7 @@ def test_get_chat_history_orders_oldest_to_newest_including_error_rows(
 
 
 def test_ws_turns_feed_prior_history_to_the_provider(client, monkeypatch) -> None:
-    from app.modules.chats import ws as ws_module
+    from app.features.chats import ws as ws_module
 
     recording = RecordingProvider()
     monkeypatch.setattr(ws_module, "build_chat_provider", lambda settings: recording)

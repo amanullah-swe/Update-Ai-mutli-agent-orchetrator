@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from app.modules.chats.models import Message
+from app.features.chats.models import Message
 
 
 def _create(client, title: str | None = None):

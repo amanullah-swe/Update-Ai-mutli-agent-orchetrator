@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.shared.core.config import Settings
+from app.core.config import Settings
 
 _RAG_VARS = (
     "RAG_ENVIRONMENT",

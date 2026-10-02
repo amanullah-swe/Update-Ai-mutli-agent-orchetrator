@@ -11,11 +11,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.router import api_router
-from app.shared.core.config import get_settings
-from app.shared.core.exceptions import register_exception_handlers
-from app.logging import RequestIdMiddleware, configure_logging, get_logger
-from app.shared.database.session import engine
+from app.core.config import get_settings
+from app.core.exceptions import register_exception_handlers
+from app.core.logging import RequestIdMiddleware, configure_logging, get_logger
+from app.database.session import engine
+from app.features.chats.router import router as chats_router
+from app.features.health.router import router as health_router
 
 settings = get_settings()
 log = get_logger("rag.platform.main")
@@ -50,7 +51,8 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestIdMiddleware)
 
     register_exception_handlers(app)
-    app.include_router(api_router, prefix="/api")
+    app.include_router(health_router, prefix="/api")
+    app.include_router(chats_router, prefix="/api")
 
     @app.get("/")
     def root() -> dict:

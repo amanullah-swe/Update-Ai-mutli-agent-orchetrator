@@ -84,10 +84,10 @@ The `ai_agent/` package is deliberately separate from `rag/`. The agent may use 
 ```text
 rag-learning-platform/
 ├── frontend/          React + TypeScript chat UI (components/, pages/, hooks/, services/, types/, utils/)
-├── backend/           FastAPI — modular, feature-sliced monolith: app/main.py, app/api/{deps,router}.py,
-│                      app/shared/{core,database}/ (config, logging, exceptions, engine, base),
-│                      app/modules/{chats,health,documents,evaluation,experiments}/ (one folder per feature:
-│                      router.py, schemas.py, models.py, repository.py, provider.py, ws.py), tests/{unit,integration}/
+├── backend/           FastAPI — modular, feature-sliced monolith: app/main.py,
+│                      app/core/ (config, logging, exceptions), app/database/ (engine, session, get_db, base),
+│                      app/features/{chats,health}/ (vertical slice per feature: router.py, schemas.py,
+│                      models.py, repository.py, provider.py, ws.py), tests/{unit,integration}/
 ├── ai_agent/          agent/{agent,state,planner,executor}.py, tools/, memory/, prompts/, guardrails/, tests/
 ├── rag/
 │   ├── types/         document.py, chunk.py, retrieval.py, evaluation.py

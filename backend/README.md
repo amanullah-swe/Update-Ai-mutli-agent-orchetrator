@@ -95,19 +95,21 @@ cd backend && uv run pytest      # unit (provider, no DB) + integration (real Po
 Requires a reachable `rag_learning_test` database (see `tests/conftest.py`); the
 schema is rebuilt from Alembic at session start.
 
-## Layout
+## Layout (Feature-Sliced Architecture)
 
 ```text
 backend/
   app/
-    main.py            # app factory, CORS, exception handlers, middleware
-    core/              # config (Settings + YAML), database, logging (request-id), exceptions
-    models/            # SQLAlchemy ORM: conversations + messages
-    schemas/           # Pydantic: chat resources + HTTP/WebSocket frames
-    services/          # chat provider seam + conversation (chat) persistence
-    api/routes/        # health, chats (HTTP + WebSocket)
-  tests/               # pytest unit + integration
+    main.py            # FastAPI application factory, CORS, exception handlers, middleware
+    core/              # Cross-cutting: config (Settings + YAML), logging, exceptions
+    database/          # Database engine, SessionLocal, get_db, Base declarative model
+    features/          # Vertical feature slices (domain-driven)
+      chats/           # Chat feature slice: router, schemas, models, repository, provider, ws
+      health/          # Health feature slice: router, schemas
+    shared/            # Backward-compatibility shims (core, database)
+  rag/                 # RAG pipeline components: chunking, embeddings, ingestion, retrieval, etc.
+  tests/               # pytest unit + integration test suites
 database/              # migrations (Alembic), schemas (reference), seed
 configs/               # development.yaml / testing.yaml / production.yaml
-docker/                # docker-compose (postgres) + Dockerfile.backend
+docker/                # docker-compose (postgres + pgvector) + Dockerfile.backend
 ```

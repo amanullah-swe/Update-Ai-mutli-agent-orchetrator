@@ -7,7 +7,7 @@ import uuid
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
-from app.modules.chats.models import Message
+from app.features.chats.models import Message
 
 
 def _new_chat(client) -> str:

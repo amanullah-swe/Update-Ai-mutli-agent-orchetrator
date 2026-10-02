@@ -9,15 +9,15 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from app.modules.chats.provider import (
+from app.features.chats.provider import (
     LLM_SYSTEM_PROMPT,
     OpenRouterChatProvider,
     SourcesEvent,
     TokenEvent,
     _build_messages,
 )
-from app.modules.chats.schemas import MessageOut
-from app.shared.core.exceptions import LLMProviderError
+from app.features.chats.schemas import MessageOut
+from app.core.exceptions import LLMProviderError
 
 
 def _msg(
@@ -136,7 +136,7 @@ def test_token_delay_is_applied_per_delta(monkeypatch) -> None:
     import time
 
     monkeypatch.setattr(
-        "app.modules.chats.provider.time.sleep", lambda s: sleeps.append(s)
+        "app.features.chats.provider.time.sleep", lambda s: sleeps.append(s)
     )
     provider = _provider(
         lambda req: httpx.Response(

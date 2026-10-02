@@ -1,1 +1,0 @@
-"""Core configuration, database, logging, and exceptions for the backend API."""
