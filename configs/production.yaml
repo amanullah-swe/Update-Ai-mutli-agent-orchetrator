@@ -19,5 +19,5 @@ chat:
 
 llm:
   provider: openrouter
-  model: deepseek/deepseek-v4-flash-0731
+  model: qwen/qwen3.8-27b:free
   api_key: ""

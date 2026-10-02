@@ -174,7 +174,7 @@ All strategy selection happens through configuration, read at startup, never at 
 ```yaml
 llm:
   provider: openrouter        # consumed by the chat provider (010): llm.model + RAG_LLM_API_KEY
-  model: deepseek/deepseek-v4-flash-0731
+  model: qwen/qwen3.8-27b:free
   api_key: ""                 # real key ONLY via env RAG_LLM_API_KEY (backend/.env)
 embedding:
   provider: openrouter
@@ -191,7 +191,7 @@ evaluation:
   strategy: ragas
 ```
 
-**Provider conventions:** All model traffic goes through **OpenRouter** — set `llm.provider: openrouter` and `embedding.provider: openrouter`, using OpenRouter model IDs (vendor-prefixed, e.g. `deepseek/deepseek-v4-flash-0731` for the LLM and `sentence-transformers/all-minilm-l6-v2` for embeddings, 384-dim).
+**Provider conventions:** All model traffic goes through **OpenRouter** — set `llm.provider: openrouter` and `embedding.provider: openrouter`, using OpenRouter model IDs (vendor-prefixed, e.g. `qwen/qwen3.8-27b:free` for the LLM and `sentence-transformers/all-minilm-l6-v2` for embeddings, 384-dim).
 
 **What is live today (feature 010):** `llm.provider`/`llm.model`/`llm.api_key` are wired into the
 backend's `Settings` (ADR-003) and consumed by the chat provider seam. The *seam selector* is

@@ -79,7 +79,7 @@ class Settings(BaseSettings):
 
     # --- llm --------------------------------------------------------------
     llm_provider: str = "openrouter"  # CLAUDE.md provider convention (reserved; seam is chat.provider)
-    llm_model: str = "deepseek/deepseek-v4-flash-0731"
+    llm_model: str = "qwen/qwen3.8-27b:free"
     llm_api_key: str = ""  # from env RAG_LLM_API_KEY only; never commit a real key
 
     def yaml_file(self) -> Path:

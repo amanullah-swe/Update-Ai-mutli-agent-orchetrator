@@ -1,13 +1,13 @@
 """Integration tests: history helper + WS turns feed the prior transcript
-to the provider (real PostgreSQL, fake recording provider — no network)."""
+to the orchestrator (real PostgreSQL, fake recording orchestrator — no network)."""
 
 from __future__ import annotations
 
 import uuid
 
 from app.features.chats import repository
-from app.features.chats.provider import SourcesEvent, TokenEvent
 from app.features.chats.schemas import MessageOut
+from orchestrator.events import SourcesEvent, TokenEvent
 
 
 def _new_chat(client) -> str:
@@ -24,7 +24,7 @@ def _run_turn(ws, content: str) -> list[dict]:
             return frames
 
 
-class RecordingProvider:
+class RecordingOrchestrator:
     """Captures the history each turn was fed; streams a canned reply."""
 
     def __init__(self) -> None:
@@ -44,7 +44,7 @@ def test_get_chat_history_orders_oldest_to_newest_including_error_rows(
     for i in (1, 2, 3):
         role = "user" if i % 2 == 1 else "assistant"
         repository.append_message(db_session, cid, role=role, content=f"m{i}")
-    # A failed turn is a real row — the helper returns it; the PROVIDER skips it.
+    # A failed turn is a real row — the helper returns it; the orchestrator skips it.
     repository.append_message(
         db_session, cid, role="assistant", content="failed", error=True
     )
@@ -55,11 +55,11 @@ def test_get_chat_history_orders_oldest_to_newest_including_error_rows(
     assert all(isinstance(m, MessageOut) for m in history)
 
 
-def test_ws_turns_feed_prior_history_to_the_provider(client, monkeypatch) -> None:
+def test_ws_turns_feed_prior_history_to_the_orchestrator(client, monkeypatch) -> None:
     from app.features.chats import ws as ws_module
 
-    recording = RecordingProvider()
-    monkeypatch.setattr(ws_module, "build_chat_provider", lambda settings: recording)
+    recording = RecordingOrchestrator()
+    monkeypatch.setattr(ws_module, "build_chat_orchestrator", lambda settings: recording)
 
     chat_id = _new_chat(client)
     with client.websocket_connect(f"/api/chats/{chat_id}/ws") as websocket:

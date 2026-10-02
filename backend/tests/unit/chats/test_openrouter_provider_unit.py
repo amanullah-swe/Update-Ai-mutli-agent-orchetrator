@@ -1,4 +1,4 @@
-"""Unit tests: OpenRouterChatProvider — no network (httpx.MockTransport)."""
+"""Unit tests: OpenRouterLLMClient — no network (httpx.MockTransport)."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from app.features.chats.provider import (
+from app.core.exceptions import LLMProviderError
+from app.features.chats.schemas import MessageOut
+from orchestrator.llm_client import (
     LLM_SYSTEM_PROMPT,
-    OpenRouterChatProvider,
+    OpenRouterLLMClient,
     SourcesEvent,
     TokenEvent,
     _build_messages,
 )
-from app.features.chats.schemas import MessageOut
-from app.core.exceptions import LLMProviderError
 
 
 def _msg(
@@ -41,9 +41,9 @@ def _content_chunk(content: str) -> str:
     return json.dumps({"choices": [{"delta": {"content": content}}]})
 
 
-def _provider(handler, *, api_key: str = "sk-test") -> OpenRouterChatProvider:
+def _provider(handler, *, api_key: str = "sk-test") -> OpenRouterLLMClient:
     client = httpx.Client(transport=httpx.MockTransport(handler))
-    return OpenRouterChatProvider(model="m/test-model", api_key=api_key, client=client)
+    return OpenRouterLLMClient(model="m/test-model", api_key=api_key, client=client)
 
 
 def _sss_body() -> bytes:
@@ -110,6 +110,13 @@ def test_build_messages_coalesces_adjacent_same_role() -> None:
     ]
 
 
+def test_build_messages_injects_context_into_system_prompt() -> None:
+    messages = _build_messages([], "what is chunking?", context="## Doc\nChunks are...")
+    system_content = messages[0]["content"]
+    assert "## Retrieved context" in system_content
+    assert "Chunks are..." in system_content
+
+
 def test_non_200_raises_llm_provider_error() -> None:
     provider = _provider(
         lambda req: httpx.Response(
@@ -136,7 +143,7 @@ def test_token_delay_is_applied_per_delta(monkeypatch) -> None:
     import time
 
     monkeypatch.setattr(
-        "app.features.chats.provider.time.sleep", lambda s: sleeps.append(s)
+        "orchestrator.llm_client.time.sleep", lambda s: sleeps.append(s)
     )
     provider = _provider(
         lambda req: httpx.Response(

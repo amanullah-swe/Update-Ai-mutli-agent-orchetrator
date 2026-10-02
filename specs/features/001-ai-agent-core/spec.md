@@ -50,7 +50,7 @@ The AI agent is the front door between the chat UI and the platform's capabiliti
 agent:
   model:
     provider: openrouter            # all model traffic via OpenRouter
-    model: deepseek/deepseek-v4-flash-0731
+    model: qwen/qwen3.8-27b:free
   max_iterations: 5
   max_tool_calls: 10
 ```

@@ -1,6 +1,6 @@
 """Chat WebSocket messaging — one long-lived connection per chat.
 
-Reads ``user_message`` frames and streams the provider's events back as
+Reads ``user_message`` frames and streams the orchestrator's events back as
 ``ready`` → ``message`` → ``message_start`` → ``token*`` → ``sources`` →
 ``message_end`` (+ in-band ``error``), persisting the transcript. All database
 work is dispatched to the threadpool via ``run_in_threadpool`` so the sync
@@ -26,13 +26,6 @@ from app.core.exceptions import (
 )
 from app.database.session import SessionLocal
 from app.features.chats import repository
-from app.features.chats.provider import (
-    ChatProvider,
-    ProviderEvent,
-    SourcesEvent,
-    TokenEvent,
-    build_chat_provider,
-)
 from app.features.chats.schemas import (
     ErrorFrame,
     MessageEndFrame,
@@ -44,6 +37,8 @@ from app.features.chats.schemas import (
     TokenFrame,
     UserMessageFrame,
 )
+from orchestrator.chat_orchestrator import ChatOrchestrator, build_chat_orchestrator
+from orchestrator.events import ProviderEvent, SourcesEvent, TokenEvent
 
 log = logging.getLogger("rag.platform.chats.ws")
 
@@ -98,7 +93,7 @@ def _next_provider_event(iterator):
 
 
 async def _stream_events(
-    provider: ChatProvider,
+    provider: ChatOrchestrator,
     user_message: str,
     history: Sequence[MessageOut],
     *,
@@ -181,7 +176,7 @@ async def chat_ws_handler(
         try:
             # Built per turn so a config error (e.g. missing API key) surfaces
             # in-band on the offending turn, not as a silent connect close.
-            provider = build_chat_provider(settings)
+            provider = build_chat_orchestrator(settings)
             async for event in _stream_events(
                 provider, frame.content, history,
                 token_delay_ms=settings.mock_token_delay_ms,

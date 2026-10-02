@@ -1,14 +1,11 @@
-"""Chats feature slice."""
+"""Chats feature slice.
+
+Only model/schema/repository symbols are exported here.
+Router and WebSocket handler are imported directly in main.py to avoid
+circular import chains through the orchestrator package.
+"""
 
 from app.features.chats.models import Conversation, Message
-from app.features.chats.provider import (
-    ChatProvider,
-    MockChatProvider,
-    OpenRouterChatProvider,
-    SourcesEvent,
-    TokenEvent,
-    build_chat_provider,
-)
 from app.features.chats.repository import (
     append_message,
     create_chat,
@@ -18,7 +15,6 @@ from app.features.chats.repository import (
     list_chats,
     rename_chat,
 )
-from app.features.chats.router import router
 from app.features.chats.schemas import (
     ChatCreate,
     ChatDetail,
@@ -37,14 +33,12 @@ from app.features.chats.schemas import (
     TokenFrame,
     UserMessageFrame,
 )
-from app.features.chats.ws import chat_ws_handler
 
 __all__ = [
     "ChatCreate",
     "ChatDetail",
     "ChatListResponse",
     "ChatOut",
-    "ChatProvider",
     "ChatRename",
     "ChatSummary",
     "Conversation",
@@ -54,23 +48,16 @@ __all__ = [
     "MessageFrame",
     "MessageOut",
     "MessageStartFrame",
-    "MockChatProvider",
-    "OpenRouterChatProvider",
     "ReadyFrame",
     "Source",
-    "SourcesEvent",
     "SourcesFrame",
-    "TokenEvent",
     "TokenFrame",
     "UserMessageFrame",
     "append_message",
-    "build_chat_provider",
-    "chat_ws_handler",
     "create_chat",
     "delete_chat",
     "get_chat",
     "get_chat_history",
     "list_chats",
     "rename_chat",
-    "router",
 ]

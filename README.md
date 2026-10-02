@@ -140,7 +140,7 @@ All strategy selection happens through configuration, read at startup, never at 
 ```yaml
 llm:
   provider: openrouter
-  model: deepseek/deepseek-v4-flash-0731
+  model: qwen/qwen3.8-27b:free
 embedding:
   provider: openrouter
   model: sentence-transformers/all-minilm-l6-v2

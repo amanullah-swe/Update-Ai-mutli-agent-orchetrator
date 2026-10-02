@@ -79,14 +79,14 @@ chat:
   provider: openrouter     # dev + prod; testing keeps mock (deterministic CI)
 llm:
   provider: openrouter     # CLAUDE.md provider convention (reserved for the future RAG generator)
-  model: deepseek/deepseek-v4-flash-0731
+  model: qwen/qwen3.8-27b:free
   api_key: ""              # real key ONLY via env: RAG_LLM_API_KEY (backend/.env)
 ```
 
 ```env
 # backend/.env.example
 RAG_CHAT_PROVIDER=openrouter
-RAG_LLM_MODEL=deepseek/deepseek-v4-flash-0731
+RAG_LLM_MODEL=qwen/qwen3.8-27b:free
 RAG_LLM_API_KEY=            # <your OpenRouter key> — no default, never committed
 ```
 

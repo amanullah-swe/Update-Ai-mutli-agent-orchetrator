@@ -17,6 +17,7 @@ TEST_DATABASE_URL = "postgresql+psycopg://rag:rag@localhost:5432/rag_learning_te
 os.environ.setdefault("RAG_ENVIRONMENT", "testing")
 os.environ["RAG_DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["RAG_MOCK_TOKEN_DELAY_MS"] = "0"
+os.environ["RAG_CHAT_PROVIDER"] = "mock"  # override backend/.env which may set openrouter
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402

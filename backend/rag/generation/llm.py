@@ -26,7 +26,7 @@ class OpenRouterGenerator(BaseGenerator):
     def __init__(
         self,
         api_key: str = "",
-        model: str = "deepseek/deepseek-v4-flash-0731",
+        model: str = "qwen/qwen3.8-27b:free",
         base_url: str = "https://openrouter.ai/api/v1",
         temperature: float = 0.2,
         system_prompt: str = DEFAULT_RAG_SYSTEM_PROMPT,

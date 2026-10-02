@@ -46,7 +46,7 @@ def test_yaml_layer_loads_testing_config(yaml_settings) -> None:
 def test_llm_section_loads_from_yaml(yaml_settings) -> None:
     settings = yaml_settings
     assert settings.llm_provider == "openrouter"
-    assert settings.llm_model == "deepseek/deepseek-v4-flash-0731"
+    assert settings.llm_model == "qwen/qwen3.8-27b:free"
     assert settings.llm_api_key == ""
 
 

@@ -21,7 +21,7 @@ chat:
 
 llm:
   provider: openrouter    # CLAUDE.md provider convention (reserved; the seam is chat.provider)
-  model: deepseek/deepseek-v4-flash-0731
+  model: qwen/qwen3.8-27b:free
   api_key: ""             # real key ONLY via env RAG_LLM_API_KEY (backend/.env)
 # Future RAG strategy sections (decided/empty until the pipeline feature lands):
 # chunking: { strategy: recursive }
