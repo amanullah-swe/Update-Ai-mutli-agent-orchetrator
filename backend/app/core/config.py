@@ -47,6 +47,10 @@ _YAML_ALIASES: dict[tuple[str, ...], str] = {
     ("llm", "provider"): "llm_provider",
     ("llm", "model"): "llm_model",
     ("llm", "api_key"): "llm_api_key",
+    ("embedding", "provider"): "embedding_provider",
+    ("embedding", "model"): "embedding_model",
+    ("embedding", "dimension"): "embedding_dimension",
+    ("embedding", "api_key"): "embedding_api_key",
 }
 
 
@@ -81,6 +85,12 @@ class Settings(BaseSettings):
     llm_provider: str = "openrouter"  # CLAUDE.md provider convention (reserved; seam is chat.provider)
     llm_model: str = "qwen/qwen3.8-27b:free"
     llm_api_key: str = ""  # from env RAG_LLM_API_KEY only; never commit a real key
+
+    # --- embedding --------------------------------------------------------
+    embedding_provider: str = "openrouter"
+    embedding_model: str = "sentence-transformers/all-minilm-l6-v2"
+    embedding_dimension: int = 384
+    embedding_api_key: str = ""  # defaults to llm_api_key if empty
 
     def yaml_file(self) -> Path:
         return REPO_ROOT / "configs" / f"{self.environment}.yaml"

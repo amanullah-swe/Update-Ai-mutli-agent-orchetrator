@@ -6,7 +6,7 @@ from typing import Any
 
 from rag.core.registry import register
 from rag.embeddings.base import BaseEmbeddingModel
-from rag.embeddings.sentence_transformer import SentenceTransformerEmbeddings
+from rag.embeddings.openrouter import OpenRouterEmbeddings
 from rag.retrieval.base import BaseRetriever
 from rag.types.retrieval import RetrievalQuery, RetrievedChunk
 from rag.vectorstores.base import BaseVectorStore
@@ -23,7 +23,7 @@ class DenseRetriever(BaseRetriever):
         embedding_model: BaseEmbeddingModel | None = None,
     ):
         self.vector_store = vector_store or PGVectorStore()
-        self.embedding_model = embedding_model or SentenceTransformerEmbeddings()
+        self.embedding_model = embedding_model or OpenRouterEmbeddings()
 
     def retrieve(
         self,

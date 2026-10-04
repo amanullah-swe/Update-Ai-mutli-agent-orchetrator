@@ -21,7 +21,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 # ── imports (after path fix) ─────────────────────────────────────────────────
 from app.database.session import SessionLocal
 from rag.chunking.overlap import OverlapChunker
-from rag.embeddings.sentence_transformer import SentenceTransformerEmbeddings
+from rag.embeddings.openrouter import OpenRouterEmbeddings
 from rag.ingestion.pipeline import IngestionPipeline
 from rag.vectorstores.pgvector import PGVectorStore
 
@@ -30,7 +30,7 @@ DOCUMENT_PATH = Path(__file__).resolve().parents[2] / "document_store" / "PyTorc
 
 CHUNK_SIZE    = 800   # characters
 CHUNK_OVERLAP = 150   # characters
-EMBED_MODEL   = "BAAI/bge-small-en-v1.5"
+EMBED_MODEL   = "sentence-transformers/all-minilm-l6-v2"
 BATCH_SIZE    = 64    # chunks per embedding/store batch
 
 
@@ -73,7 +73,7 @@ def run_indexing(pdf_path: Path) -> None:
 
     # ── 3. Embedding + Storage (batch) ────────────────────────────────────────
     log(f"Embedding model: {EMBED_MODEL}")
-    embedder  = SentenceTransformerEmbeddings(model_name=EMBED_MODEL, normalize_embeddings=True)
+    embedder  = OpenRouterEmbeddings(model_name=EMBED_MODEL)
     log(f"  ✓ Embedding dimension: {embedder.dimension}")
 
     session   = SessionLocal()

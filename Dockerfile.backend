@@ -1,0 +1,44 @@
+# syntax=docker/dockerfile:1
+# Backend image for the RAG Learning Platform API (API-only build).
+# Python 3.13-slim keeps the image small and has wide wheel coverage;
+# local dev may run 3.14 via uv.
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    # Tell uv where to store its cache inside the container so the
+    # BuildKit cache mount below can persist it across builds.
+    UV_CACHE_DIR=/root/.cache/uv
+
+# Install uv via the official installer (faster than pip, no extra deps).
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /app/backend
+
+# ── Dependency layer (cached separately from source code) ─────────────────────
+# Copy only the files uv needs to resolve & install dependencies.
+# This layer is only invalidated when pyproject.toml or uv.lock changes,
+# not on every source-code edit.
+COPY backend/pyproject.toml backend/uv.lock ./
+
+# --mount=type=cache persists uv's wheel/sdist cache on the Docker host
+# across builds for fast subsequent `docker compose build` calls.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
+
+# ── Application source & schema ───────────────────────────────────────────────
+# Copy source after deps so rebuilds on code changes skip the sync layer.
+COPY backend/ ./
+COPY database/ /app/database/
+COPY configs/ /app/configs/
+
+RUN chmod +x /app/backend/entrypoint.sh
+
+# Install the project itself (no deps, already synced above).
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
+EXPOSE 8001
+ENTRYPOINT ["/app/backend/entrypoint.sh"]
+CMD ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

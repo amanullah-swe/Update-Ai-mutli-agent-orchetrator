@@ -1,80 +1,135 @@
-# RAG Learning Platform — developer command surface.
+# ──────────────────────────────────────────────────────────────────────────────
+# Makefile – Development shortcuts for the RAG Learning Platform
+# ──────────────────────────────────────────────────────────────────────────────
+.DEFAULT_GOAL := help
+SHELL         := /bin/bash
 
-PY := uv run --project backend
+# ── Docker ────────────────────────────────────────────────────────────────────
 
-.PHONY: help backend frontend dev db test migrate migrate-make seed up up-all down install-docker
+.PHONY: up
+up: ## Start all services (db + backend + frontend) in the foreground
+	docker compose up --build
 
-## Show this help and exit
-help:
-	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## //'
+.PHONY: up-d
+up-d: ## Start all services in the background (detached)
+	docker compose up --build -d
 
-## Backend (dev): uvicorn with reload on :8001
-backend:
-	cd backend && uv run uvicorn app.main:app --reload --port 8001
+.PHONY: down
+down: ## Stop and remove all containers, networks
+	docker compose down
 
-## Frontend (dev): Vite dev server on :5173 (talks to backend on :8001 via VITE_API_BASE_URL)
-frontend:
+.PHONY: down-v
+down-v: ## Stop all containers and delete volumes (⚠️  wipes DB data)
+	docker compose down -v
+
+.PHONY: restart
+restart: down up ## Restart all services
+
+.PHONY: logs
+logs: ## Tail logs from all running services
+	docker compose logs -f
+
+.PHONY: logs-backend
+logs-backend: ## Tail logs from the backend service only
+	docker compose logs -f backend
+
+.PHONY: logs-frontend
+logs-frontend: ## Tail logs from the frontend service only
+	docker compose logs -f frontend
+
+.PHONY: ps
+ps: ## Show status of all services
+	docker compose ps
+
+.PHONY: build
+build: ## Build all Docker images without starting
+	docker compose build
+
+# ── Local dev (no Docker) ─────────────────────────────────────────────────────
+
+.PHONY: install
+install: install-backend install-frontend ## Install all dependencies locally
+
+.PHONY: install-backend
+install-backend: ## Install backend Python dependencies via uv
+	cd backend && uv sync
+
+.PHONY: install-frontend
+install-frontend: ## Install frontend npm dependencies
+	cd frontend && npm ci
+
+.PHONY: dev
+dev: ## Run backend + frontend locally in parallel (needs local Postgres)
+	@echo "Starting backend and frontend in parallel…"
+	@$(MAKE) -j2 dev-backend dev-frontend
+
+.PHONY: dev-backend
+dev-backend: ## Run the FastAPI backend locally (uvicorn, port 8001)
+	cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+.PHONY: dev-frontend
+dev-frontend: ## Run the Vite dev server locally (port 5173)
 	cd frontend && npm run dev
 
-## Everything (dev): PostgreSQL + migrations + backend + frontend in one Ctrl+C-able session
-dev:
-	@$(MAKE) db
-	@$(MAKE) migrate
-	@printf '\n=== backend  → http://localhost:8001   (API + WebSocket)\n'
-	@printf '=== frontend → http://localhost:5173   (Vite dev server)\n'
-	@printf '=== Ctrl+C stops both.\n'
-	@sh -c 'trap "kill 0 2>/dev/null" EXIT; \
-		(cd backend && uv run uvicorn app.main:app --reload --port 8001) & \
-		(cd frontend && npm run dev) & \
-		wait'
+# ── Database ──────────────────────────────────────────────────────────────────
 
-## Database: start PostgreSQL via Docker and wait until it accepts connections
-db:
-	docker compose -f docker/docker-compose.yml up -d db
-	@printf 'Waiting for PostgreSQL on localhost:5432…\n'
-	@for i in $$(seq 1 30); do \
-		docker compose -f docker/docker-compose.yml exec -T db pg_isready -U rag -d rag_learning >/dev/null 2>&1 && { printf 'PostgreSQL ready.\n'; exit 0; }; \
-		sleep 1; \
-	done; \
-	printf 'PostgreSQL not ready after 30s — check:\n  docker compose -f docker/docker-compose.yml logs db\n' >&2; \
-	exit 1
+.PHONY: db
+db: ## Start only the database container
+	docker compose up -d db
 
-## Tests: full suite (unit + integration against PostgreSQL)
-test:
+.PHONY: db-shell
+db-shell: ## Open a psql shell inside the running db container
+	docker compose exec db psql -U rag -d rag_learning
+
+.PHONY: migrate
+migrate: ## Run Alembic migrations (head)
+	cd database/migrations && alembic upgrade head
+
+.PHONY: migrate-down
+migrate-down: ## Rollback one Alembic migration
+	cd database/migrations && alembic downgrade -1
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+
+.PHONY: test
+test: test-backend test-frontend ## Run all tests
+
+.PHONY: test-backend
+test-backend: ## Run backend tests via pytest
 	cd backend && uv run pytest
 
-## Apply Alembic migrations (the only DDL source)
-migrate:
-	$(PY) alembic -c database/migrations/alembic.ini upgrade head
+.PHONY: test-frontend
+test-frontend: ## Run frontend tests via vitest
+	cd frontend && npm test
 
-## Autogenerate a migration: make migrate-make name="add column x"
-migrate-make:
-	$(PY) alembic -c database/migrations/alembic.ini revision --autogenerate -m "$(name)"
+.PHONY: test-frontend-watch
+test-frontend-watch: ## Run frontend tests in watch mode
+	cd frontend && npm run test:watch
 
-## Seed dev data (through the Docker PostgreSQL — there is no host psql)
-seed:
-	docker compose -f docker/docker-compose.yml exec -T db psql -U rag -d rag_learning -f - < database/seed/dev.sql
+# ── Linting ───────────────────────────────────────────────────────────────────
 
-## Docker Compose: bring up just PostgreSQL (alias for db)
-up: db
+.PHONY: lint
+lint: lint-frontend ## Run all linters
 
-## Docker Compose: bring up PostgreSQL + backend
-up-all:
-	docker compose -f docker/docker-compose.yml up --build
+.PHONY: lint-frontend
+lint-frontend: ## Lint frontend with oxlint
+	cd frontend && npm run lint
 
-## Stop all Docker Compose services
-down:
-	docker compose -f docker/docker-compose.yml down
+# ── Cleanup ───────────────────────────────────────────────────────────────────
 
-## Install Docker Engine + Compose plugin (Ubuntu/Debian, official repo); needs sudo
-install-docker:
-	@if command -v docker >/dev/null 2>&1; then echo "Docker already installed: $$(docker --version)"; exit 0; fi
-	sudo apt-get update
-	sudo apt-get install -y ca-certificates curl
-	sudo install -m 0755 -d /etc/apt/keyrings
-	sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-	sudo chmod a+r /etc/apt/keyrings/docker.asc
-	printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu %s stable\n' "$$(dpkg --print-architecture)" "$$(. /etc/os-release && printf '%s' "$$VERSION_CODENAME")" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-	sudo apt-get update
-	sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-	@printf '\nDone. To run docker without sudo:  sudo usermod -aG docker $$USER   (then log out/in).\n'
+.PHONY: clean
+clean: ## Remove build artifacts and caches
+	rm -rf frontend/dist frontend/node_modules/.vite
+	find backend -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	rm -rf backend/rag_learning_backend.egg-info
+
+.PHONY: clean-all
+clean-all: clean down-v ## Clean artifacts + destroy Docker volumes (⚠️  full reset)
+	docker image rm $$(docker compose config --images) 2>/dev/null || true
+
+# ── Help ──────────────────────────────────────────────────────────────────────
+
+.PHONY: help
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
