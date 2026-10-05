@@ -99,8 +99,24 @@ test-backend: ## Run backend tests via pytest
 	cd backend && uv run pytest
 
 .PHONY: test-frontend
-test-frontend: ## Run frontend tests via vitest
+test-frontend: ## Run frontend unit/component tests via vitest
 	cd frontend && npm test
+
+.PHONY: test-frontend-unit
+test-frontend-unit: ## Run frontend unit/component tests via vitest
+	cd frontend && npm run test:unit
+
+.PHONY: test-frontend-coverage
+test-frontend-coverage: ## Run frontend tests with coverage report
+	cd frontend && npm run test:coverage
+
+.PHONY: test-frontend-e2e
+test-frontend-e2e: ## Run frontend end-to-end browser automation tests via Playwright
+	cd frontend && npm run test:e2e
+
+.PHONY: test-frontend-all
+test-frontend-all: ## Run all frontend tests (unit + e2e)
+	cd frontend && npm run test:all
 
 .PHONY: test-frontend-watch
 test-frontend-watch: ## Run frontend tests in watch mode

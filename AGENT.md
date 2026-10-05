@@ -1,258 +1,311 @@
-# CLAUDE.md
+# AGENT.md (Architectural Specification & Agent Guidelines)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides authoritative guidance to AI coding agents (Antigravity, Claude Code, etc.) when working with code in this repository.
 
-## Project status
+## Project Status
 
-- **Specification-first project.** As of 2026-09-27 this repository contains only this document plus a backup of the original spec (`CLAUDE.md.spec-backup-2026-09-27.md`). No implementation code exists yet: no `frontend/`, `backend/`, `rag/`, `ai_agent/`, no Makefile, no README, no git history.
-- The sections below are the authoritative product requirements for a **Modular AI Agent + RAG Learning Platform** — a system whose primary purpose is to learn, implement, compare, evaluate, and test different RAG strategies. They were condensed from the original spec, which is preserved verbatim in the backup file; if this doc and the backup ever disagree, the backup is the source of truth for requirements.
-- Until code exists there are no runnable commands. The Commands section is an honest placeholder to be completed as scaffolding lands.
-- The **Core Architectural Rule** (below) is the single most important requirement in this project and overrides everything else.
+- **Status:** Active, modular monolith with FastAPI backend, React frontend, PostgreSQL + pgvector storage, and a pluggable RAG subsystem.
+- **Implemented Components:**
+  - **`backend/`**: FastAPI service (`app.main:app`), feature-sliced structure (`app/features/chats/`, `app/features/health/`), WebSocket streaming (`/api/chats/{chat_id}/ws`), chat CRUD endpoints, Alembic database migrations, and typed settings.
+  - **`orchestrator/`**: Dynamic chat orchestrator coordinating streaming events (`TokenEvent`, `SourcesEvent`), LLM clients (`MockLLMClient`, `OpenRouterLLMClient`), and RAG routing.
+  - **`rag/`**: Modular RAG subsystem with swappable components:
+    - Ingestion: PDF loader (`pymupdf`), PDF parser, text cleaner, ingestion pipeline.
+    - Chunking: `OverlapChunker` (sliding window), `FixedSizeChunker`.
+    - Embeddings: `OpenRouterEmbeddings` via OpenRouter remote API (`sentence-transformers/all-minilm-l6-v2`, 384 dimensions matching pgvector schema). *Local `sentence-transformers` and PyTorch dependencies were eliminated to keep Docker images lean (~1.1 GB savings).*
+    - Vector Storage: `PGVectorStore` with PostgreSQL pgvector extension on the `chunks` table.
+    - Retrieval: `DenseRetriever` using dense vector similarity search.
+    - Reranking: `NoOpReranker` (pass-through).
+    - Context Building: `DefaultContextBuilder`.
+    - Generation: `OpenRouterGenerator` via OpenRouter API.
+    - Pipeline: `RAGPipeline` orchestrator coordinating Query Transformation → Retrieval → Reranking → Context Construction → Generation.
+  - **`frontend/`**: React + Vite + TypeScript application with Tailwind styling, WebSocket streaming message client, markdown rendering, and chat history management.
+  - **`database/`**: PostgreSQL migrations via Alembic (`b2e9f1c4a5d6_initial_chat_schema.py`, `c3a4f2b1d0e9_add_chunks_pgvector_table.py`).
+  - **`docker/`**: Containerized deployment with `Dockerfile.backend` (multi-stage BuildKit caching, `entrypoint.sh` auto-migrations), `Dockerfile.frontend` (Nginx + static build), and `docker-compose.yml`.
 
-## Core Architectural Rule (highest priority)
+---
+
+## Core Architectural Rule (Highest Priority)
 
 > **Every RAG strategy must be implemented as a replaceable component behind a common interface. The core pipeline must depend on interfaces, not concrete implementations. Strategy selection must happen through configuration.**
 
 Consequences that always apply:
+- The RAG pipeline must never contain `if <strategy>:` dispatch chains or import concrete implementations directly.
+- Swapping strategies means editing a configuration value — nothing else. Changing `retrieval: { strategy: dense }` to `hybrid` must be sufficient to run the identical pipeline with another strategy.
+- Every swappable component registers with `@register(kind, name)` and is built via `build_component(kind, name, **kwargs)`.
+- Components receive resolved settings through dependency injection; components never read raw YAML files or `os.environ` directly.
 
-- The RAG pipeline must never contain `if <strategy>:` dispatch chains or import concrete implementations directly. No `recursive_chunking(...)` hard-wired into pipeline code.
-- Swapping strategies means editing a config value — nothing else. Changing `chunking.strategy: recursive` to `semantic` must be sufficient to run the identical pipeline with another strategy.
-- Every swappable component exposes one of the common interfaces (see Common Interfaces). Each interface has multiple implementations; implementations are selected by name at startup from configuration.
-- Keep components independent, config-driven, interface-based, observable, and named clearly. Do not build one large service containing all strategies.
+---
 
-## Build decisions (open questions — resolve, then record here)
-
-These decisions are NOT yet made because no code exists. Resolve each one during scaffolding and record the decision in this section so the whole project stays consistent. Recommended defaults are marked (→).
-
-1. **Strategy → class binding** — how config `chunking.strategy: semantic` resolves to `SemanticChunker`. → Use a per-component-type registry with a `@register("semantic")` class decorator and a `build_component(kind, name)` factory that raises a loud error listing known strategies. Avoid `importlib`-by-convention and avoid dispatch listings in the pipeline.
-2. **Python tooling** — ✅ RESOLVED (ADR-002): `uv` + `pyproject.toml` with a committed `uv.lock`; Python `>=3.13`. Original `requirements.txt` note superseded.
-3. **Config loading** — ✅ RESOLVED (ADR-003): `pydantic-settings` `Settings` + `configs/<env>.yaml` (YAML is the low-priority source; `RAG_*` env + `.env` override). Components get a typed `Settings` via dependency injection; nothing reads YAML or env directly.
-4. **Framework dependence** — the folder layout (format-specific loaders/parsers/cleaners) implies hand-written implementations behind custom interfaces. → Keep custom interfaces and add thin adapters to third-party libraries (LangChain, LlamaIndex, RAGAS, etc.), so swappability never depends on a framework.
-5. **Frontend tooling** — → Vite + React + TypeScript, chat messaging over a WebSocket client for `/api/chats/{id}/ws` (ADR-011 superseded the SSE `/api/chat` client — see decision #10).
-6. **Sparse retrieval storage** — `rag/retrieval/sparse.py` needs a sparse index that pgvector cannot provide. → PostgreSQL FTS / `pg_search` alongside pgvector, or an in-memory BM25 index. Pick one.
-7. **Filtering stage** — the pipeline stage list includes *Filtering*, but the folder layout has no `rag/filtering/` module (closest is `rag/context/deduplication.py`). → Either add a `rag/filtering/` package with an interface, or officially fold filtering into retrieval. Decide and keep the layout consistent with the pipeline stages.
-8. **DB migrations** — ✅ RESOLVED (ADR-008): Alembic (`database/migrations/`) is the single source of truth; treat `database/schemas/` as reference DDL, never applied. Tests rebuild the schema via Alembic, not `create_all`.
-9. **Config key vocabulary** — the spec mixes `provider` (for `llm`, `embedding`) and `strategy` (for `chunking`, `retrieval`, `reranking`). Keep both but document `strategy` as the general term; update all sample configs to match.
-10. **Streaming transport** — ✅ RESOLVED (ADR-011, supersedes ADR-010): chat messaging runs over a **WebSocket** (`WS /api/chats/{chat_id}/ws`) with JSON frames — `user_message` in; `message_start → token* → sources → message_end`, plus in-band `error`, out. ADR-010's SSE choice is superseded for chat; its event vocabulary is preserved.
-
-## Commands
-
-Everything hangs off the root `Makefile` (run `make help` for the annotated list):
-
-- **Full dev session:** `make dev` — ensures PostgreSQL (Docker if none is already listening on :5432, waits until ready), applies pending Alembic migrations, then backend + frontend together; Ctrl+C stops all.
-- **Backend (dev):** `make backend` — `uvicorn app.main:app --reload --port 8001`. Needs the DB (`make db`) and, for real answers, `RAG_LLM_API_KEY` in `backend/.env`.
-- **Frontend (dev):** `make frontend` — `npm run dev` (Vite on :5173, talks to the backend at :8001 via `frontend/.env.development`'s `VITE_API_BASE_URL`).
-- **Database:** `make db` (or `up`) — `docker compose up -d db` + readiness wait; `down` stops it; `up-all` builds the containerized backend too.
-- **First time on a fresh machine:** `make install-docker` (apt, needs sudo), `make db`, `make migrate`, `make seed`.
-- **Migrations:** `make migrate` (upgrade) · `make migrate-make name="..."` (autogenerate). Alembic is the only DDL source.
-- **Tests:** `make test` — `cd backend && uv run pytest`. Single test: `cd backend && uv run pytest tests/unit/chats/test_chat_provider_unit.py::test_name`.
-- **Seed data:** `make seed` — loads `database/seed/dev.sql` into `rag_learning`.
-
-## Architecture overview (as specified)
-
-```
-                    ┌─────────────────────┐
-                    │      React UI       │
-                    │   ChatGPT-like UI   │
-                    └──────────┬──────────┘
-                               │
-                               │ HTTP / SSE
-                               ▼
-                    ┌─────────────────────┐
-                    │     FastAPI         │
-                    │      Backend        │
-                    └──────────┬──────────┘
-                               │
-             ┌─────────────────┼─────────────────┐
-             │                 │                 │
-             ▼                 ▼                 ▼
-       ┌───────────┐    ┌──────────────┐   ┌────────────┐
-       │ AI Agent  │    │ RAG Pipeline │   │  Services  │
-       └───────────┘    └──────────────┘   └────────────┘
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │ PostgreSQL          │
-                    │ + pgvector          │
-                    └─────────────────────┘
-```
-
-The `ai_agent/` package is deliberately separate from `rag/`. The agent may use RAG as one of its tools/capabilities (intent → tool selection → RAG tool → answer), but it must not contain RAG implementation details.
-
-### Monorepo layout (contract to build against)
+## Architecture & Monorepo Layout
 
 ```text
-rag-learning-platform/
-├── frontend/          React + TypeScript chat UI (components/, pages/, hooks/, services/, types/, utils/)
-├── backend/           FastAPI — modular, feature-sliced monolith: app/main.py,
-│                      app/core/ (config, logging, exceptions), app/database/ (engine, session, get_db, base),
-│                      app/features/{chats,health}/ (vertical slice per feature: router.py, schemas.py,
-│                      models.py, repository.py, provider.py, ws.py), tests/{unit,integration}/
-├── ai_agent/          agent/{agent,state,planner,executor}.py, tools/, memory/, prompts/, guardrails/, tests/
-├── rag/
-│   ├── types/         document.py, chunk.py, retrieval.py, evaluation.py
-│   ├── ingestion/     loaders/{base,pdf,docx,html,text}_loader.py, parsers/, cleaners/, pipeline.py
-│   ├── chunking/      base.py + fixed_size, recursive, semantic, sentence, parent_child
-│   ├── embeddings/    base.py + openai, sentence_transformer, local
-│   ├── vectorstores/  base.py + pgvector
-│   ├── retrieval/     base.py + dense, sparse, hybrid, metadata        (see decision #7 re: filtering)
-│   ├── reranking/     base.py + cross_encoder, llm_reranker
-│   ├── query/         rewriting.py, multi_query.py, hyde.py, decomposition.py
-│   ├── context/       builder.py, compression.py, deduplication.py
-│   ├── generation/    base.py + llm
-│   ├── evaluation/    datasets/, retrieval/, generation/, end_to_end/, metrics/
-│   ├── testing/       unit/, integration/, regression/, fixtures/
-│   ├── monitoring/    tracing.py, metrics.py, logging.py
-│   └── pipeline.py
-├── database/          migrations/, schemas/, seed/
-├── experiments/       configs/, results/, notebooks/
-├── configs/           development.yaml, testing.yaml, production.yaml
-├── specs/             spec-driven workflow — features/ (one per feature), templates/, decisions/
-├── tests/             integration/, e2e/
-├── docker/            Dockerfile.backend, Dockerfile.frontend, docker-compose.yml
-├── .env.example, README.md, Makefile
+.
+├── backend/                  FastAPI modular application
+│   ├── app/
+│   │   ├── core/             config.py (Settings), logging.py, exceptions.py
+│   │   ├── database/         session.py, base.py
+│   │   ├── features/
+│   │   │   ├── chats/        router.py, schemas.py, models.py, repository.py, ws.py
+│   │   │   └── health/       router.py, schemas.py
+│   │   └── main.py           FastAPI factory, CORS, exception handlers, routers
+│   ├── orchestrator/         ChatOrchestrator, LLMClient, events, rag_router
+│   ├── rag/                  Modular RAG Subsystem
+│   │   ├── core/             base.py, registry.py, exceptions.py
+│   │   ├── types/            document.py, chunk.py, retrieval.py
+│   │   ├── ingestion/        loaders/, parsers/, cleaners/, pipeline.py
+│   │   ├── chunking/         base.py, overlap.py, fixed_size.py
+│   │   ├── embeddings/       base.py, openrouter.py
+│   │   ├── vectorstores/     base.py, pgvector.py, models.py
+│   │   ├── retrieval/        base.py, dense.py
+│   │   ├── reranking/        base.py, noop.py
+│   │   ├── query/            base.py, passthrough.py
+│   │   ├── context/          base.py, builder.py
+│   │   ├── generation/       base.py, llm.py
+│   │   └── pipeline.py       RAGPipeline coordinating all stages
+│   ├── scripts/              index_document.py (PDF indexing utility)
+│   ├── tests/                tests/unit/ (66 tests), tests/integration/ (23 tests)
+│   ├── entrypoint.sh         Container startup script: runs Alembic migrations, starts Uvicorn
+│   ├── pyproject.toml        Python >=3.13 dependencies (uv)
+│   └── uv.lock               Deterministic dependency lockfile
+├── configs/                  Environment YAML configs (development.yaml, testing.yaml, production.yaml)
+├── database/                 Database schemas & migrations
+│   ├── migrations/           alembic.ini, env.py, versions/
+│   ├── schemas/              reference.sql
+│   └── seed/                 dev.sql
+├── frontend/                 React + TypeScript + Vite UI
+│   ├── src/                  components/, hooks/, services/, types/
+│   ├── package.json          npm dependencies
+│   └── vite.config.ts        Vite build configuration
+├── docker-compose.yml        Multi-container orchestration (db, backend, frontend)
+├── Dockerfile.backend        Lean Python 3.13-slim image with BuildKit cache
+├── Dockerfile.frontend       Multi-stage Node build + Nginx static server
+├── Makefile                  Developer command shortcuts
+└── AGENT.md                  Architectural specification & guidelines
 ```
 
-The most important architectural requirement is **swappability**. The system must allow changing, e.g.:
+---
 
-```python
-chunker = RecursiveChunker()
-# → to:
-chunker = SemanticChunker()
+## Common Interfaces & Component Registry
+
+Every swappable component implements one of the abstract base classes in `rag/` and registers with `@register(kind, name)`:
+
+| Component Kind | Base Interface | Active / Known Implementations |
+| :--- | :--- | :--- |
+| `loader` | `BaseLoader` | `pdf` (`PyMuPDFLoader`) |
+| `parser` | `BaseParser` | `pdf` (`PDFParser`) |
+| `cleaner` | `BaseCleaner` | `default`, `text` (`TextCleaner`) |
+| `chunking` | `BaseChunker` | `overlap` (`OverlapChunker`), `fixed_size` |
+| `embedding` | `BaseEmbeddingModel` | `openrouter`, `default`, `sentence_transformer` (OpenRouter alias) |
+| `vectorstore` | `BaseVectorStore` | `pgvector` (`PGVectorStore`) |
+| `query_transformation` | `BaseQueryTransformer` | `none`, `passthrough` (`PassThroughQueryTransformer`) |
+| `retrieval` | `BaseRetriever` | `dense` (`DenseRetriever`) |
+| `reranking` | `BaseReranker` | `none`, `noop` (`NoOpReranker`) |
+| `context_builder` | `BaseContextBuilder` | `default` (`DefaultContextBuilder`) |
+| `generator` | `BaseGenerator` | `openrouter`, `llm` (`OpenRouterGenerator`) |
+
+---
+
+## Model & Provider Conventions
+
+All external model traffic is routed through **OpenRouter** to avoid local weights and excessive image sizes:
+
+1. **LLM Generation**:
+   - Provider: `openrouter`
+   - Default Model: `deepseek/deepseek-v4-flash-0731` or `qwen/qwen3.8-27b:free`
+   - Config field: `llm.model` / `RAG_LLM_MODEL`
+   - API Key: `RAG_LLM_API_KEY` in `backend/.env`
+2. **Dense Vector Embeddings**:
+   - Provider: `openrouter`
+   - Model: `sentence-transformers/all-minilm-l6-v2` via OpenRouter
+   - Vector dimensionality: `384` (strictly matches PostgreSQL `chunks.embedding` `Vector(384)`)
+   - Shared Credentials: Automatically uses `RAG_LLM_API_KEY` (or `RAG_EMBEDDING_API_KEY`)
+   - Batching: `OpenRouterEmbeddings.embed_batch` automatically handles batch chunking (default 64 items per request).
+
+---
+
+## Database & Migration Lifecycle
+
+1. **Single Source of Truth**:
+   - Alembic (`database/migrations/`) is the sole DDL source.
+   - Migrations are versioned and purely DDL (`CREATE TABLE`, `CREATE INDEX`, `CREATE EXTENSION`).
+2. **Container Auto-Migration**:
+   - `Dockerfile.backend` copies `database/` and `configs/` into `/app`.
+   - `backend/entrypoint.sh` executes `alembic upgrade head` before `uvicorn` starts:
+     ```bash
+     uv run --no-sync alembic -c /app/database/migrations/alembic.ini upgrade head
+     exec "$@"
+     ```
+   - **Idempotency**: Alembic tracks the applied version in `alembic_version` (`c3a4f2b1d0e9`). When the container reboots, Alembic checks the table, sees it is up to date, and exits in <50ms without touching existing data or duplicating rows.
+
+---
+
+## Runnable Commands
+
+### 1. Docker Compose (Full Stack)
+```bash
+# Start all services (PostgreSQL 17, FastAPI backend, React frontend)
+docker compose up --build -d
+
+# View service status
+docker compose ps
+
+# Tail backend logs
+docker compose logs -f backend
+
+# Stop all services
+docker compose down
+
+# Stop all services and wipe database volume
+docker compose down -v
 ```
 
-without modifying the rest of the RAG pipeline — and the same for retrieval, embeddings, document loaders, evaluation methods, etc.
+### 2. Local Backend Development (without Docker)
+```bash
+# Install / sync backend dependencies
+cd backend && uv sync
 
-### RAG pipeline stages
+# Run backend development server (:8001)
+cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+# Run Alembic migrations against local/container DB
+cd backend && uv run alembic -c ../database/migrations/alembic.ini upgrade head
+
+# Index a document into the RAG vector store
+cd backend && uv run python -m scripts.index_document path/to/document.pdf
+```
+
+### 3. Testing
+```bash
+# Run complete test suite (unit + integration tests, requires DB)
+cd backend && uv run pytest
+
+# Run pure unit tests (fast, no database required)
+cd backend && uv run pytest tests/unit/
+
+# Run specific test file
+cd backend && uv run pytest tests/unit/rag/test_embeddings.py
+```
+
+### 4. Local Frontend Development
+```bash
+# Install frontend dependencies
+cd frontend && npm install
+
+# Start Vite development server (:5173)
+cd frontend && npm run dev
+
+# Run frontend tests
+cd frontend && npm test
+```
+
+---
+
+## Backend API Surface
 
 ```text
-Document → Loading → Parsing → Cleaning → Chunking → Embedding → Vector Storage
-→ Query → Query Transformation → Retrieval → Filtering → Reranking
-→ Context Construction → LLM → Response → Evaluation
+POST   /api/chats                 Create a new conversation
+GET    /api/chats                 List conversations (most recent activity first)
+GET    /api/chats/{id}            Get conversation details + message transcript
+PATCH  /api/chats/{id}            Rename conversation title
+DELETE /api/chats/{id}            Delete conversation (cascades messages)
+WS     /api/chats/{id}/ws         Bidirectional WebSocket for streaming chat & RAG
+GET    /api/health                System liveness and database reachability check
+GET    /docs                      Interactive OpenAPI / Swagger UI
 ```
 
-Every stage must be independently testable.
+---
 
-## Common interfaces
+## Software Development Rules & Engineering Guidelines
 
-Every swappable component implements exactly one of:
+All developers and AI coding agents working in this repository must strictly adhere to the following rules:
 
-```text
-DocumentLoader   DocumentParser   DocumentCleaner   Chunker
-EmbeddingModel   VectorStore      Retriever         Reranker
-QueryTransformer ContextBuilder   Generator         Evaluator
-```
+### 1. Function Design & Unit of Work (Unit Functions)
+- **Single Responsibility per Function**: Every function must perform exactly **one unit of work** and do it well. If a function is validating input, fetching data, transforming data, and writing to a database, decompose it into discrete, single-purpose helper functions.
+- **Short & Focused**: Aim for functions of 15–35 lines. A function that exceeds 40–50 lines is usually doing multiple things and must be refactored into smaller, cohesive units.
+- **Separation of Pure Logic and I/O**:
+  - Keep pure business logic (calculations, text parsing, formatting, filtering) completely free of I/O operations (HTTP calls, DB queries). Pure functions are trivial to test and reason about.
+  - Keep orchestrators and controllers thin: they should only coordinate calling single-purpose domain functions.
+- **Guard Clauses & Early Returns**:
+  - Handle error cases, edge cases, and preconditions at the top of the function with early returns or raises.
+  - Avoid deeply nested `if/else` ladders (keep cyclomatic complexity low, max 2–3 levels of indentation).
+- **Descriptive, Intention-Revealing Names**:
+  - Name functions with strong verb-noun pairings that precisely state their single action: `validate_chat_title()`, `extract_pdf_pages()`, `compute_similarity_score()`.
+  - Avoid vague verbs like `process()`, `handle()`, or `manage()` when a specific verb is applicable (`sanitize_text()`, `persist_message()`).
 
-Indexing a new variant means: implement the interface in a new file, register it, and reference it by name in config — the pipeline code itself is untouched. This is what enables experiments like *Recursive+Dense*, *Semantic+Dense*, *Semantic+Hybrid*, *Semantic+Hybrid+CrossEncoder* without changing application code.
+### 2. Core Architectural & Coding Principles
+- **SOLID Principles**:
+  - **S (Single Responsibility)**: Modules, classes, and functions each have exactly one reason to change.
+  - **O (Open/Closed)**: Extend RAG strategies via `@register` without altering core pipeline code.
+  - **L (Liskov Substitution)**: Any subclass/implementation must satisfy the exact contract of its base interface (`BaseEmbeddingModel`, `BaseRetriever`, `BaseChunker`).
+  - **I (Interface Segregation)**: Small, targeted interfaces over monolithic god-interfaces.
+  - **D (Dependency Inversion)**: High-level modules depend on abstract interfaces, never on concrete implementation details.
+- **DRY (Don't Repeat Yourself)**: Extract duplicated logic into reusable utility functions, but balance DRY against premature coupling.
+- **KISS (Keep It Simple, Stupid)**: Choose clear, obvious, readable implementations over clever meta-programming, complex inheritance trees, or obscure one-liners.
+- **YAGNI (You Aren't Gonna Need It)**: Implement only what is specified for current requirements. Do not build speculative features, parameters, or abstract layers for imaginary future use cases.
+- **Law of Demeter (Least Knowledge)**: An object should only communicate with its immediate collaborators. Avoid long method chains (`a.b.c.get_d()`).
 
-## Backend API surface (current — 007 chat CRUD + WebSocket + 009 delete)
+### 3. Code Quality & Clean Code Standards
+- **Strict Typing & Self-Documentation**:
+  - Mandatory `from __future__ import annotations` in all Python files.
+  - Provide full type hints on every parameter and return value.
+  - Avoid `Any`; use explicit types, `Union`, `Literal`, or `Protocol`.
+  - Write concise docstrings on public classes and functions explaining **why** (rationale, non-obvious constraints), not just restating the name.
+- **Defensive Programming & Fail Fast**:
+  - Validate parameters and boundaries early. If a required value is missing, raise a domain-specific exception immediately rather than propagating invalid state or returning silent `None`.
+  - Use Pydantic models for boundary validation (HTTP payloads, configuration).
+- **Immutability & State Safety**:
+  - Prefer immutable data representations (`dataclass(frozen=True)`, `NamedTuple`, Pydantic models with frozen configs) where feasible.
+  - Avoid mutating function arguments in place; return new collections or transformed objects instead.
+- **Explicit Over Implicit**:
+  - Never use wildcard imports (`from module import *`).
+  - Be explicit with constants, timeouts, and error messages.
 
-```text
-POST   /api/chats                 create a chat
-GET    /api/chats                 list chats (most recent activity first)
-GET    /api/chats/{id}            get a chat + its transcript
-PATCH  /api/chats/{id}            rename a chat
-DELETE /api/chats/{id}            delete a chat (messages cascade) — 009
-WS     /api/chats/{id}/ws         send/receive messages (JSON frames)
-GET    /api/health                liveness + database reachability
-```
+### 4. Python & Backend Standards
+- **Error Handling Architecture**:
+  - Raise domain-specific exceptions inheriting from platform bases (`RAGError`, `LLMProviderError`, `ChatNotFoundError`).
+  - Never swallow exceptions with bare `except: pass` or catch generic `Exception` without context. Always use `except Exception as exc: raise DomainError(...) from exc`.
+  - Global FastAPI exception handlers format domain errors into consistent JSON error responses.
+- **Configuration & Dependency Injection**:
+  - Business logic and RAG components must never read `os.environ` or YAML files directly.
+  - Inject configuration via `Settings` (`app.core.config.get_settings()`).
+  - Endpoints receive DB sessions via FastAPI dependency injection (`Depends(get_db)`).
+- **Async & Threading Hygiene**:
+  - Use `async def` for I/O-bound endpoints (WebSockets, async HTTP calls).
+  - Delegate synchronous blocking operations (SQLAlchemy DB transactions, CPU-heavy parsing) to worker threadpools (`run_in_threadpool`) to keep the async event loop responsive.
+- **Lean Dependencies**:
+  - Keep containers lightweight. Never introduce heavy binary libraries (e.g. PyTorch, CUDA toolkits) without explicit architectural review. Prefer remote API integrations (OpenRouter) for model execution.
 
-Document upload, evaluation runs, and experiment runs were de-scoped from the initial
-build (feature 007 rescope) and return to the backlog as their own features when the RAG
-pipeline exists to produce real data. Chat messaging is the working transport, carried by
-WebSockets (decision #10 → ADR-011).
+### 5. Frontend & TypeScript Standards
+- **Type Safety**:
+  - Strict TypeScript with `noImplicitAny: true`.
+  - Never use `any`; use `unknown` with type guards or define explicit interfaces.
+- **Component Hygiene**:
+  - Small, modular components. Separate presentation from data fetching and state hooks.
+  - Explicitly handle all 4 UI states: `idle`, `loading`, `success`, and `error`.
+  - Centralize API calls in service classes; do not sprinkle raw `fetch()` calls across components.
 
-Assistant replies come from the `ChatProvider` seam (feature 010): `chat.provider: mock`
-(the canned test reply) or `openrouter` (a real LLM call, history-aware — prior turns are
-fetched from PostgreSQL and sent to OpenRouter). Missing `RAG_LLM_API_KEY` surfaces as an
-in-band `validation_error` frame; upstream failures as `llm_error`.
+### 6. Database & Migration Governance
+- **Alembic Exclusivity**:
+  - Alembic (`database/migrations/`) is the sole DDL authority.
+  - Never run manual DDL (`ALTER TABLE`, `CREATE TABLE`) directly in production or call `Base.metadata.create_all()` in application code.
+  - All migrations must be transactional, reversible (`downgrade` implemented), and idempotent.
+- **Data Integrity**:
+  - Never embed seed or mock data inside DDL migrations. Migrations must alter schema only.
+  - Use foreign keys with cascade constraints where appropriate (`ondelete="CASCADE"`).
 
-## Configuration model
+### 7. Testing & Quality Assurance
+- **Hermetic Unit Tests**:
+  - Unit tests in `backend/tests/unit/` must execute in < 2 seconds and require **zero network and zero database**.
+  - Always mock external APIs (OpenRouter, external endpoints) using `httpx.MockTransport`.
+- **Integration Tests**:
+  - Integration tests in `backend/tests/integration/` verify database sessions and WebSocket flows against a real PostgreSQL test database.
+- **Test Before Completing**:
+  - Every change or feature must be verified with `uv run pytest tests/unit/`.
+  - Never leave failing or skipped tests unaddressed.
 
-All strategy selection happens through configuration, read at startup, never at component level. Example shape:
-
-```yaml
-llm:
-  provider: openrouter        # consumed by the chat provider (010): llm.model + RAG_LLM_API_KEY
-  model: qwen/qwen3.8-27b:free
-  api_key: ""                 # real key ONLY via env RAG_LLM_API_KEY (backend/.env)
-embedding:
-  provider: openrouter
-  model: sentence-transformers/all-minilm-l6-v2
-chunking:
-  strategy: recursive
-retrieval:
-  strategy: hybrid
-reranking:
-  strategy: cross_encoder
-query_transformation:
-  strategy: none
-evaluation:
-  strategy: ragas
-```
-
-**Provider conventions:** All model traffic goes through **OpenRouter** — set `llm.provider: openrouter` and `embedding.provider: openrouter`, using OpenRouter model IDs (vendor-prefixed, e.g. `qwen/qwen3.8-27b:free` for the LLM and `sentence-transformers/all-minilm-l6-v2` for embeddings, 384-dim).
-
-**What is live today (feature 010):** `llm.provider`/`llm.model`/`llm.api_key` are wired into the
-backend's `Settings` (ADR-003) and consumed by the chat provider seam. The *seam selector* is
-`chat.provider` (`mock` | `openrouter`); `llm.provider` stays reserved for the future RAG
-generator. `embedding:`/`chunking:`/`retrieval:`/`reranking:`/`query_transformation:`/`evaluation:`
-remain inert until their pipeline features land. `configs/*.yaml` genuinely load (the Settings
-`REPO_ROOT` resolves to the repo root); `RAG_*` env and `.env` still override YAML.
-
-## Database (PostgreSQL + pgvector)
-
-Entities to model: `documents`, `document_versions`, `chunks`, `embeddings`, `conversations`, `messages`, `evaluation_datasets`, `evaluation_results`, `experiments`, `experiment_runs`. Store enough metadata to trace any RAG answer back to its source document and chunk.
-
-## Evaluation (first-class component)
-
-- **Retrieval:** Recall@K, Precision@K, context relevance, context precision, context recall.
-- **Generation:** faithfulness, answer relevance, correctness, hallucination detection.
-- **End-to-end:** answer quality, citation correctness, latency, token usage, cost, error rate.
-
-Evaluators must be pluggable without changing the RAG pipeline. (See decision #4 — RAGAS as an adapter.)
-
-## Testing requirements
-
-- **Unit:** each chunker, retriever, embedding model, reranker, query transformer, context builder.
-- **Integration:** e.g. Retriever + PGVector, Embedding + PGVector, RAG Pipeline + LLM.
-- **Regression:** maintain a golden dataset (`question`, `expected_answer`, `expected_documents`, `expected_evidence`, `metadata`). Rerunnable after any change to chunking, embeddings, retrieval, reranking, prompts, LLM, or data — to compare results.
-
-## Experiment framework
-
-An experiments runner executes config combinations, e.g. `chunking: [recursive, semantic]` × `retrieval: [dense]` × `reranking: [none, cross_encoder]`, and stores per run: configuration, metrics, latency, cost, retrieval results, generated answers, evaluation results, timestamp.
-
-## Observability
-
-Every RAG request must be traceable end-to-end through: request_id, query, retrieval strategy, embedding model, chunking strategy, retrieved chunks, retrieval scores, reranking scores, prompt/model version, LLM response, latency, token usage, errors. When an answer is wrong, it must be possible to identify which stage caused the problem.
-
-## Frontend (minimal chat UI)
-
-User/assistant message list, input box + send, streaming responses, markdown + code block rendering, loading/error states, new-conversation, and source/citation display. Keep it simple; do not overspend on visual customization.
-
-## Spec-driven feature workflow
-
-We build this project **feature by feature, spec first**. Behavior is specified before code is written, then planned, then implemented and logged. Each feature folder stores three documents so any change can be back-tracked:
-
-- **`spec.md`** — *what* we're building (interfaces, behavior, acceptance criteria). The feature's `Status:` lives here.
-- **`plan.md`** — *how* we'll build it (ordered steps, files, test strategy), written once the spec is `Specified`.
-- **`implementation.md`** — *what actually happened* (append-only, dated log: files touched, deviations, test results, decisions). Never rewrite this file — add entries. This is the back-tracking trail.
-
-- **Specs live in `specs/features/<NNN>-<slug>/`** with those three files. Templates live in `specs/templates/`; see `specs/README.md`.
-- **Feature lifecycle:** `Draft → Specified → Planned → Implemented → Tested → Accepted`, tracked in the spec's `Status:` line. A feature ships only when its acceptance checklist is fully ticked and `plan.md`'s steps are done.
-- **No code before `Planned`.** Spec must be `Specified` (`spec.md`) and `Planned` (`plan.md`) before behavior is implemented. Scaffolding folders is fine.
-- **Spec-first on change:** behavior changes touch the spec first, then the plan, then the code.
-- **One feature per working unit:** implement, test, and commit a single feature (or a coherent slice) at a time. Each must satisfy the Core Architectural Rule and this layout's contract.
-- **Decisions:** resolving an open item in "Build decisions" produces an ADR under `specs/decisions/` and updates the item here.
-- **Definition of Done:** a feature is Done when Implemented, Tested (unit + relevant integration/regression), logged in `implementation.md`, and Accepted against its acceptance criteria.
-
-## Definition of Done (acceptance checklist for the initial build)
-
-- React frontend runs; FastAPI backend runs; PostgreSQL + pgvector connected.
-- Document upload and ingestion work.
-- At least two chunking strategies and two retrieval strategies selectable; embedding strategy changeable via config; reranking toggleable via config.
-- RAG pipeline executes end-to-end; chatbot answers from RAG with streamed responses.
-- Evaluation runs against a dataset; unit/integration/regression tests exist.
-- Experiments compare different configurations.
-- Changing a strategy does **not** require modifying the core RAG pipeline.
-- README explains how to add a new strategy.
+### 8. Security & Repository Hygiene
+- **Zero Committed Secrets**:
+  - Never commit API keys, passwords, private tokens, or `.env` files.
+  - Keep `.env.example` up to date with empty dummy values for newly introduced environment variables.
+- **Preserve Unrelated Code**:
+  - Do not delete, reformat, or alter comments, docstrings, or unrelated files unless explicitly requested.

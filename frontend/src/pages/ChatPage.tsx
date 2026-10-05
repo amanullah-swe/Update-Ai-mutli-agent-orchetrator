@@ -94,19 +94,21 @@ export function ChatPage() {
   const handleSend = useCallback(
     async (text: string) => {
       let conversationId = activeId
+      let startsUntitled = false
       if (!conversationId) {
         const created = await createConversation()
         if (!created) return
         conversationId = created.id
         selectConversation(conversationId)
+        startsUntitled = created.title === null
+      } else {
+        // A chat with a null title and no local messages is brand-new; give it a
+        // title derived from its first user message (the server has no
+        // auto-titling — the client renames, per 007 spec).
+        startsUntitled = conversations.some(
+          (c) => c.id === conversationId && c.title === null,
+        )
       }
-
-      // A chat with a null title and no local messages is brand-new; give it a
-      // title derived from its first user message (the server has no
-      // auto-titling — the client renames, per 007 spec).
-      const startsUntitled = conversations.some(
-        (c) => c.id === conversationId && c.title === null,
-      )
 
       await send(text, conversationId)
 
