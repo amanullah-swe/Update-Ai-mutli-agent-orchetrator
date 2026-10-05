@@ -105,6 +105,10 @@ test-backend: ## Run backend tests via pytest
 test-backend-unit: ## Run backend unit tests (fast, no DB)
 	cd backend && uv run pytest tests/unit/ -m "not integration and not e2e and not live_llm"
 
+.PHONY: test-rag-evaluation
+test-rag-evaluation: ## Run RAG evaluation pipeline tests
+	cd backend && uv run pytest tests/unit/rag/test_evaluation_*.py -v
+
 .PHONY: test-backend-integration
 test-backend-integration: ## Run backend integration tests (requires PostgreSQL)
 	cd backend && uv run pytest tests/integration/
