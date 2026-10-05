@@ -1,0 +1,85 @@
+name: Backend CI & Automation Tests
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'backend/**'
+      - 'configs/**'
+      - 'database/**'
+      - '.github/workflows/backend-tests.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'backend/**'
+      - 'configs/**'
+      - 'database/**'
+      - '.github/workflows/backend-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: rag
+          POSTGRES_PASSWORD: rag
+          POSTGRES_DB: rag_learning_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      RAG_ENVIRONMENT: testing
+      RAG_DATABASE_URL: postgresql+psycopg://rag:rag@localhost:5432/rag_learning_test
+      RAG_CHAT_PROVIDER: mock
+      RAG_MOCK_TOKEN_DELAY_MS: 0
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install backend dependencies
+        run: uv sync --dev
+
+      - name: Run Database Migrations
+        run: uv run alembic -c ../database/migrations/alembic.ini upgrade head
+
+      - name: Run Backend Unit Tests
+        run: uv run pytest tests/unit/ -m "not integration and not e2e and not live_llm"
+
+      - name: Run Backend Integration Tests
+        run: uv run pytest tests/integration/
+
+      - name: Run Backend E2E Tests
+        run: uv run pytest tests/e2e/ -m "not live_llm"
+
+      - name: Run Test Coverage & Generate Report
+        run: uv run pytest --cov=app --cov=orchestrator --cov=rag --cov=scripts --cov-report=term-missing --cov-report=html:coverage tests/unit tests/integration tests/e2e -m "not live_llm"
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: backend-coverage-report
+          path: backend/coverage/
+          retention-days: 14

@@ -30,8 +30,16 @@ class RetrievedChunk:
         return self.chunk.document_id
 
     @property
+    def chunk_id(self) -> str:
+        return self.chunk.id
+
+    @property
     def page_number(self) -> int | None:
         return self.chunk.page_number
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return self.chunk.metadata
 
 
 @dataclass

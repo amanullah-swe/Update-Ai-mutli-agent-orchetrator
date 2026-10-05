@@ -92,11 +92,38 @@ migrate-down: ## Rollback one Alembic migration
 # ── Testing ───────────────────────────────────────────────────────────────────
 
 .PHONY: test
-test: test-backend test-frontend ## Run all tests
+test: test-backend test-frontend ## Run all tests (backend + frontend)
+
+.PHONY: test-all
+test-all: test-backend-all test-frontend-all ## Run complete test suites across backend and frontend
 
 .PHONY: test-backend
 test-backend: ## Run backend tests via pytest
 	cd backend && uv run pytest
+
+.PHONY: test-backend-unit
+test-backend-unit: ## Run backend unit tests (fast, no DB)
+	cd backend && uv run pytest tests/unit/ -m "not integration and not e2e and not live_llm"
+
+.PHONY: test-backend-integration
+test-backend-integration: ## Run backend integration tests (requires PostgreSQL)
+	cd backend && uv run pytest tests/integration/
+
+.PHONY: test-backend-e2e
+test-backend-e2e: ## Run backend end-to-end tests
+	cd backend && uv run pytest tests/e2e/ -m "not live_llm"
+
+.PHONY: test-backend-coverage
+test-backend-coverage: ## Run backend tests with coverage report
+	cd backend && uv run pytest --cov=app --cov=orchestrator --cov=rag --cov=scripts --cov-report=term-missing --cov-report=html:coverage tests/unit tests/integration tests/e2e -m "not live_llm"
+
+.PHONY: test-backend-all
+test-backend-all: ## Run all hermetic backend tests (unit + integration + e2e)
+	cd backend && uv run pytest tests/ -m "not live_llm"
+
+.PHONY: init-test-db
+init-test-db: ## Ensure rag_learning_test database exists in the docker container
+	docker compose exec -T db createdb -U rag -T template0 rag_learning_test 2>/dev/null || true
 
 .PHONY: test-frontend
 test-frontend: ## Run frontend unit/component tests via vitest

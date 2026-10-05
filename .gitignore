@@ -6,6 +6,10 @@
 backend/.env
 backend/uploads/
 **/.pytest_cache/
+.coverage
+.coverage.*
+coverage/
+htmlcov/
 
 # Node / frontend (frontend/ has its own, mirrored here for safety)
 frontend/node_modules/

@@ -176,14 +176,27 @@ cd backend && uv run python -m scripts.index_document path/to/document.pdf
 
 ### 3. Testing
 ```bash
-# Run complete test suite (unit + integration tests, requires DB)
-cd backend && uv run pytest
+# Run all backend tests (unit + integration + e2e, ~6s)
+make test-backend-all
+# or directly: cd backend && uv run pytest tests/ -m "not live_llm"
 
-# Run pure unit tests (fast, no database required)
-cd backend && uv run pytest tests/unit/
+# Run pure unit tests (fast, hermetic, < 2s, zero network, zero DB)
+make test-backend-unit
+# or directly: cd backend && uv run pytest tests/unit/ -m "not integration and not e2e and not live_llm"
 
-# Run specific test file
-cd backend && uv run pytest tests/unit/rag/test_embeddings.py
+# Run integration tests (requires PostgreSQL + pgvector)
+make test-backend-integration
+# or directly: cd backend && uv run pytest tests/integration/
+
+# Run end-to-end user journeys (hermetic, mock LLM)
+make test-backend-e2e
+# or directly: cd backend && uv run pytest tests/e2e/ -m "not live_llm"
+
+# Run test coverage report (generates html report in backend/coverage/)
+make test-backend-coverage
+
+# Run opt-in live OpenRouter test (requires RAG_LLM_API_KEY)
+cd backend && uv run pytest tests/e2e/test_live_openrouter.py -m live_llm
 ```
 
 ### 4. Local Frontend Development
@@ -298,9 +311,13 @@ All developers and AI coding agents working in this repository must strictly adh
   - Unit tests in `backend/tests/unit/` must execute in < 2 seconds and require **zero network and zero database**.
   - Always mock external APIs (OpenRouter, external endpoints) using `httpx.MockTransport`.
 - **Integration Tests**:
-  - Integration tests in `backend/tests/integration/` verify database sessions and WebSocket flows against a real PostgreSQL test database.
-- **Test Before Completing**:
-  - Every change or feature must be verified with `uv run pytest tests/unit/`.
+  - Integration tests in `backend/tests/integration/` verify database sessions, Alembic migrations, pgvector similarity search, and WebSocket flows against a real PostgreSQL test database (`rag_learning_test`).
+- **End-to-End (E2E) Tests**:
+  - E2E tests in `backend/tests/e2e/` verify full user journeys (document ingestion -> chat session creation -> WebSocket token and source streaming -> transcript verification).
+  - Multi-turn conversation retention, resilience to bad frames, reconnects, and concurrency isolation are verified end-to-end.
+- **Coverage & Verification**:
+  - Keep test coverage above 90% across `app/`, `orchestrator/`, `rag/`, and `scripts/`.
+  - Every change or feature must be verified with `make test-backend-all`.
   - Never leave failing or skipped tests unaddressed.
 
 ### 8. Security & Repository Hygiene

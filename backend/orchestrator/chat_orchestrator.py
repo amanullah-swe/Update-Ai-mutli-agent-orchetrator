@@ -140,13 +140,14 @@ class ChatOrchestrator:
                     context = result.get("context")
                     # RAGPipeline returns RetrievedChunk objects; convert to Source
                     for chunk in result.get("sources", []):
+                        chunk_id = getattr(chunk, "chunk_id", None) or getattr(getattr(chunk, "chunk", None), "id", None) or str(id(chunk))
                         rag_sources.append(
                             Source(
                                 document_id=getattr(chunk, "document_id", ""),
-                                chunk_id=getattr(chunk, "chunk_id", str(id(chunk))),
+                                chunk_id=chunk_id,
                                 snippet=getattr(chunk, "content", ""),
                                 score=float(getattr(chunk, "score", 0.0)),
-                                metadata=getattr(chunk, "metadata", {}),
+                                metadata=getattr(chunk, "metadata", {}) or {},
                             )
                         )
                     log.info(
